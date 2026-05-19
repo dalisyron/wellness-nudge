@@ -1,0 +1,9 @@
+{
+  "name": "wellness-nudge-v1",
+  "image": "wellness-nudge-v1",
+  "env": {
+    "MCM.BASE_API_PATH": "/wellness-nudge/v1",
+    "MCM.API_ALIAS": "true",
+    "API_KEY": "1234"
+  }
+}

@@ -1,0 +1,17 @@
+# Built artifacts
+.gradle/
+build/
+**/build/
+.cxx/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Sensitive — bundled at build time from ~/.mimoe/mimoe.lic, do not commit
+app/src/main/res/raw/mimoe_license

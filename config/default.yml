@@ -1,0 +1,12 @@
+api:
+  name: wellness-nudge
+  controllerPath: ../src/controllers
+  outputPath: ./build
+  securityHandlerPath: ../src/securityHandlers
+  swagger: ./config/swagger.yml
+
+package:
+  imageName: wellness-nudge
+  imageIndexFilePath: ./build/index.js
+  outputFolder: ./deploy
+  

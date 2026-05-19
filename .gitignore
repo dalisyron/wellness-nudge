@@ -1,0 +1,14 @@
+node_modules/
+.mimoe/
+.env
+.edgetoken
+.DS_Store
+build/
+*.log
+
+# Local-only sensitive files
+creds.txt
+edge_license.txt
+
+# Generated mim tar is in deploy/ — kept tracked, but no other deploy artifacts
+
