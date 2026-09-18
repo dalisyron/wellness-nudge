@@ -1,7 +1,9 @@
 // Post-processing for raw model output. Strips runtime/special tokens and
-// formatting, keeps the two-sentence shape, and repairs the rare HRV wording
-// that contradicts the user's actual value. Duktape-safe regexes only (no
-// lookbehind, no named groups, no s/u/y flags).
+// formatting, keeps the two-sentence shape, and repairs two recurring
+// SmolLM2 slips: an HRV word that contradicts the user's actual value, and
+// "a 10-minute power nap of 20 minutes" (seen in ~1% of outputs across the
+// evaluation runs). Duktape-safe regexes only (no lookbehind, no named
+// groups, no s/u/y flags).
 const QUOTES = /^["'“”‘’]+|["'“”‘’]+$/g;
 
 const hrvWordFor = (v) => {
