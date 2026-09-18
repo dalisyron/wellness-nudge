@@ -87,8 +87,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mimik.wellnessnudge.ui.components.DaybreakBackground
 import com.mimik.wellnessnudge.ui.components.Eyebrow
 import com.mimik.wellnessnudge.ui.components.GradientButton
@@ -105,6 +107,7 @@ import com.mimik.wellnessnudge.ui.components.SuggestionChip
 import com.mimik.wellnessnudge.ui.components.TextAction
 import com.mimik.wellnessnudge.ui.components.WellnessCard
 import com.mimik.wellnessnudge.ui.components.horizontalScrollFades
+import com.mimik.wellnessnudge.ui.components.metricTileLabelWidth
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
 import com.mimik.wellnessnudge.ui.format.formatSteps
 import com.mimik.wellnessnudge.ui.format.fullDateLabel
@@ -336,9 +339,8 @@ private enum class BodySpec(
 }
 
 /**
- * Resting HR, HRV and yesterday's steps: side by side in one card, so the goal below stays
- * in view above the Generate button. When the columns can't hold every value the signals can
- * take (large text, a narrow screen), they become tiles: two side by side, then steps.
+ * Resting HR, HRV and yesterday's steps: side by side in one card, so the goal stays in view
+ * above the Generate button, or as tiles when the card's columns can't hold them.
  */
 @Composable
 private fun BodySection(metrics: DayMetrics, onOpenEditor: (TodayEditor) -> Unit) {
@@ -370,39 +372,88 @@ private fun BodySection(metrics: DayMetrics, onOpenEditor: (TodayEditor) -> Unit
         ),
     )
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (bodyColumnsFit(maxWidth)) {
-            BodyCard(stats, onOpenEditor)
-        } else {
-            BodyTiles(stats, onOpenEditor)
+        when (val layout = rememberBodyLayout(maxWidth)) {
+            is BodyLayout.Columns -> BodyCard(stats, layout, onOpenEditor)
+            is BodyLayout.Tiles -> BodyTiles(stats, layout.sideBySide, onOpenEditor)
         }
     }
 }
 
-/** Whether every signal's widest value and its label fit a column of the Body card [width] wide. */
+/** How the Body section shows the signals: in the card's columns, or as tiles. */
+private sealed interface BodyLayout {
+    /**
+     * The card's three columns, values in [valueStyle]. Every label takes [labelLines] lines and
+     * [labelHeight], so the values line up; [labelLineHeight] is one line, where the dot and
+     * the edit glyph sit.
+     */
+    data class Columns(
+        val valueStyle: TextStyle,
+        val labelLines: Int,
+        val labelHeight: Dp,
+        val labelLineHeight: Dp,
+    ) : BodyLayout
+
+    /**
+     * Tiles: resting HR and HRV [sideBySide], then steps across the full width, or all three
+     * stacked when a half-width tile would cut a label short.
+     */
+    data class Tiles(val sideBySide: Boolean) : BodyLayout
+}
+
+/**
+ * The Body layout for a section [width] wide. The card's columns must hold every value the
+ * signals can take (the widest: 110 bpm, 120 ms, 25,000) in `metricM`, or else one step
+ * smaller. A label too long for its line wraps onto a second one rather than truncating (a
+ * word never breaks). Only when that isn't enough (very large text, a narrow phone) do the
+ * signals become tiles.
+ */
 @Composable
-private fun bodyColumnsFit(width: Dp): Boolean {
+private fun rememberBodyLayout(width: Dp): BodyLayout {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val type = WellnessTheme.type
     val labelStyle = MaterialTheme.typography.labelMedium
     return remember(width, density, measurer, type, labelStyle) {
         with(density) {
+            fun widthOf(text: String, style: TextStyle): Int =
+                measurer.measure(text, style, softWrap = false, maxLines = 1).size.width
             val columns = BodySpec.entries.size
-            val column = (width - BodyInset * 2 - DividerWidth * (columns - 1)) / columns - BodyGap * 2
-            fun measure(text: String, style: TextStyle): Dp =
-                measurer.measure(text, style, softWrap = false, maxLines = 1).size.width.toDp()
-            BodySpec.entries.all { spec ->
-                val value = measure(spec.widest, type.metricM) + (spec.unit?.let { UnitGap + measure(it, type.metricUnit) } ?: 0.dp)
-                val header = DotSize + DotGap + measure(spec.label, labelStyle) + DotGap + EditGlyphSize
-                value <= column && header <= column
+            // In pixels, less one for how the card's row rounds its columns.
+            val column = ((width - BodyInset * 2 - DividerWidth * (columns - 1)) / columns - BodyGap * 2).toPx().toInt() - 1
+            val valueStyle = listOf(type.metricM, type.metricM.compact()).firstOrNull { style ->
+                BodySpec.entries.all { spec ->
+                    val unit = spec.unit?.let { UnitGap.roundToPx() + widthOf(it, type.metricUnit) } ?: 0
+                    widthOf(spec.widest, style) + unit <= column
+                }
+            }
+            val label = column - (DotSize + DotGap + LabelGap + EditGlyphSize).roundToPx()
+            val labelLines = BodySpec.entries.maxOf { spec ->
+                if (spec.label.split(' ').any { widthOf(it, labelStyle) > label }) {
+                    Int.MAX_VALUE
+                } else {
+                    measurer.measure(spec.label, labelStyle, constraints = Constraints(maxWidth = label)).lineCount
+                }
+            }
+            if (valueStyle == null || labelLines > MaxLabelLines) {
+                val halfTile = metricTileLabelWidth((width - WellnessSpacing.ItemGap) / 2).toPx().toInt() - 1
+                BodyLayout.Tiles(sideBySide = listOf(BodySpec.RestingHr, BodySpec.Hrv).all { widthOf(it.tileLabel, labelStyle) <= halfTile })
+            } else {
+                val labelHeight = BodySpec.entries.maxOf { spec ->
+                    measurer.measure(spec.label, labelStyle, constraints = Constraints(maxWidth = label)).size.height
+                }
+                val lineHeight = measurer.measure(BodySpec.RestingHr.label, labelStyle, maxLines = 1).size.height
+                BodyLayout.Columns(valueStyle, labelLines, labelHeight.toDp(), lineHeight.toDp())
             }
         }
     }
 }
 
+/** The Body card's values one step down from `metricM`, for columns too narrow for it. */
+private fun TextStyle.compact(): TextStyle = copy(fontSize = 24.sp, lineHeight = 28.sp, letterSpacing = (-0.4).sp)
+
 /** The three signals in columns between hairlines; each column opens its own editor. */
 @Composable
-private fun BodyCard(stats: List<BodyStat>, onOpenEditor: (TodayEditor) -> Unit) {
+private fun BodyCard(stats: List<BodyStat>, layout: BodyLayout.Columns, onOpenEditor: (TodayEditor) -> Unit) {
     val hairline = WellnessTheme.colors.hairline
     WellnessCard(Modifier.fillMaxWidth(), contentPadding = 0.dp) {
         Row(
@@ -420,14 +471,14 @@ private fun BodyCard(stats: List<BodyStat>, onOpenEditor: (TodayEditor) -> Unit)
                             .background(hairline),
                     )
                 }
-                BodyColumn(stat, onClick = { onOpenEditor(stat.spec.editor) }, modifier = Modifier.weight(1f))
+                BodyColumn(stat, layout, onClick = { onOpenEditor(stat.spec.editor) }, modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun BodyColumn(stat: BodyStat, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BodyColumn(stat: BodyStat, layout: BodyLayout.Columns, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = WellnessTheme.colors
     val type = WellnessTheme.type
     Column(
@@ -437,29 +488,38 @@ private fun BodyColumn(stat: BodyStat, onClick: () -> Unit, modifier: Modifier =
             .clearAndSetSemantics { contentDescription = stat.spoken }
             .padding(horizontal = BodyGap, vertical = WellnessSpacing.CardPadding),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(DotSize)
-                    .background(stat.color, CircleShape),
-            )
+        // The dot and the edit glyph sit on the label's first line.
+        Row {
+            Box(Modifier.height(layout.labelLineHeight), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(DotSize)
+                        .background(stat.color, CircleShape),
+                )
+            }
             Spacer(Modifier.width(DotGap))
             Text(
                 text = stat.spec.label,
-                modifier = Modifier.weight(1f),
+                // A height, not minLines, which the row's intrinsic height would miss.
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = layout.labelHeight),
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textSecondary,
-                maxLines = 1,
+                maxLines = layout.labelLines,
                 overflow = TextOverflow.Ellipsis,
             )
-            Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(EditGlyphSize))
+            Spacer(Modifier.width(LabelGap))
+            Box(Modifier.height(layout.labelLineHeight), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(EditGlyphSize))
+            }
         }
         Spacer(Modifier.height(12.dp))
         Row {
             Text(
                 text = stat.shown,
                 modifier = Modifier.alignByBaseline(),
-                style = type.metricM,
+                style = layout.valueStyle,
                 color = colors.textPrimary,
                 maxLines = 1,
             )
@@ -483,14 +543,22 @@ private fun BodyColumn(stat: BodyStat, onClick: () -> Unit, modifier: Modifier =
     }
 }
 
-/** The signals as tiles, for large text: resting HR and HRV side by side, then steps across the full width. */
+/**
+ * The signals as tiles, for very large text or a narrow phone: resting HR and HRV
+ * [sideBySide], then steps across the full width, or all three stacked.
+ */
 @Composable
-private fun BodyTiles(stats: List<BodyStat>, onOpenEditor: (TodayEditor) -> Unit) {
+private fun BodyTiles(stats: List<BodyStat>, sideBySide: Boolean, onOpenEditor: (TodayEditor) -> Unit) {
     val (restingHr, hrv, steps) = stats
     Column(verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-            BodyTile(restingHr, Icons.Rounded.Favorite, onOpenEditor, Modifier.weight(1f))
-            BodyTile(hrv, Icons.Rounded.MonitorHeart, onOpenEditor, Modifier.weight(1f))
+        if (sideBySide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
+                BodyTile(restingHr, Icons.Rounded.Favorite, onOpenEditor, Modifier.weight(1f))
+                BodyTile(hrv, Icons.Rounded.MonitorHeart, onOpenEditor, Modifier.weight(1f))
+            }
+        } else {
+            BodyTile(restingHr, Icons.Rounded.Favorite, onOpenEditor, Modifier.fillMaxWidth(), WellnessShapes.Card)
+            BodyTile(hrv, Icons.Rounded.MonitorHeart, onOpenEditor, Modifier.fillMaxWidth(), WellnessShapes.Card)
         }
         BodyTile(steps, Icons.AutoMirrored.Rounded.DirectionsWalk, onOpenEditor, Modifier.fillMaxWidth(), WellnessShapes.Card)
     }
@@ -707,6 +775,10 @@ private val DividerWidth = 1.dp
 private val DotSize = 6.dp
 private val DotGap = 6.dp
 private val EditGlyphSize = 14.dp
+
+// Between a column's label and its edit glyph, whose drawing sits a further 2 dp into its box.
+private val LabelGap = 2.dp
+private const val MaxLabelLines = 2
 private val UnitGap = 4.dp
 
 // The footer: a fade above the 60 dp button, and a gap between the button and the tab bar.

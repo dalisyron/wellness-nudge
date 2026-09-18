@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import com.android.resources.Density
 import com.mimik.wellnessnudge.ui.components.FloatingNavBar
 import com.mimik.wellnessnudge.ui.components.RuntimeStatus
 import com.mimik.wellnessnudge.ui.components.WellnessBottomSheetFrame
@@ -64,13 +65,35 @@ class TodayScreenTest {
         Today(TodayPreviewData.default, editor = TodayEditor.Hrv)
     }
 
-    /** Text at 130%, on a frame tall enough for the whole screen: nothing may clip, and the body signals turn into tiles. */
+    /**
+     * Text at 130%, on a frame tall enough for the whole screen: nothing may clip. The body
+     * signals keep their columns, "Resting HR" on two lines.
+     */
     @Test
     fun largeText() {
         paparazzi.unsafeUpdateConfig(deviceConfig = Pixel9ProXL.copy(fontScale = 1.3f, screenHeight = 2640))
         paparazzi.snapshotThemes("today_large_text") { Today(TodayPreviewData.sampleDay) }
     }
+
+    /**
+     * A small phone, scrolled to the end: the columns can't hold the widest values, so the
+     * signals turn into tiles, stacked, since half-width tiles would cut "Resting HR" short.
+     */
+    @Test
+    fun smallPhone() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = SmallPhone)
+        paparazzi.snapshotThemes("today_small_phone") { Today(TodayPreviewData.default, scrolledToEnd = true) }
+    }
 }
+
+/** 720 x 1600 px at 320 dpi: 360 x 800 dp, the narrowest common phone. */
+private val SmallPhone = Pixel9ProXL.copy(
+    screenWidth = 720,
+    screenHeight = 1600,
+    xdpi = 320,
+    ydpi = 320,
+    density = Density.create(320),
+)
 
 /**
  * [TodayScreen] for [state] with the tab bar over it. An [editor] is drawn in place of its

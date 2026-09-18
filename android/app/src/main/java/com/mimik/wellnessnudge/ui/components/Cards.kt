@@ -104,8 +104,8 @@ fun MetricTile(
         onClickLabel = "Edit $label",
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBadge(icon, color)
-            Spacer(Modifier.width(10.dp))
+            IconBadge(icon, color, size = TileBadgeSize)
+            Spacer(Modifier.width(TileBadgeGap))
             Text(
                 text = label,
                 modifier = Modifier.weight(1f),
@@ -115,7 +115,7 @@ fun MetricTile(
                 overflow = TextOverflow.Ellipsis,
             )
             if (onClick != null) {
-                Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(14.dp))
+                Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(TileEditGlyphSize))
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -160,6 +160,13 @@ fun MetricTile(
 }
 
 /**
+ * The room a [MetricTile]'s label has on its line in a tile [width] wide: the tile less its
+ * padding, its badge and, on an editable tile, the edit glyph. A longer label is truncated.
+ */
+internal fun metricTileLabelWidth(width: Dp, editable: Boolean = true): Dp =
+    width - WellnessSpacing.TilePadding * 2 - TileBadgeSize - TileBadgeGap - if (editable) TileEditGlyphSize else 0.dp
+
+/**
  * A sleep duration as the hero value, e.g. on the Today sleep card and in the sleep editor:
  * digits in `metricXL`, with smaller, quieter "h" and "m" on the same baseline, so the
  * number leads. Align a trailing "asleep" (`metricUnit`) with `Modifier.alignByBaseline()`.
@@ -180,3 +187,6 @@ fun SleepDuration(
 }
 
 private val MeterHeight = 6.dp
+private val TileBadgeSize = 32.dp
+private val TileBadgeGap = 10.dp
+private val TileEditGlyphSize = 14.dp
