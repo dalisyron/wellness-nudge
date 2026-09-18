@@ -16,6 +16,8 @@ data class RuntimeInfo(
     val models: List<RuntimeModel>,
     /** Nudges in on-device storage; null when the count couldn't be read. */
     val nudgeCount: Int?,
+    /** Whether the embedded mimOE runtime reports itself up. */
+    val runtimeReady: Boolean = true,
 ) {
     val mimHealthy: Boolean get() = mimHealth?.isHealthy == true
 }

@@ -10,10 +10,13 @@ import com.mimik.wellnessnudge.api.NudgeApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -94,15 +97,20 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Collects what the runtime sheet shows: the runtime port, the mim's health, which models
-     * mILM can serve, and how many nudges are stored. Meant for [BootstrapState.Ready].
+     * Collects what the runtime sheet shows: whether the runtime runs and on which port, the
+     * mim's health, which models mILM can serve, and how many nudges are stored. The reads run
+     * side by side, and all of them stop when the caller gives up (the SDK's blocking model
+     * list is interrupted). Meant for [BootstrapState.Ready].
      */
-    suspend fun loadRuntimeInfo(): RuntimeInfo = withContext(Dispatchers.IO) {
-        val readyIds = edge.listModels().filter { it.readyToUse }.map { it.id }.toSet()
+    suspend fun loadRuntimeInfo(): RuntimeInfo = coroutineScope {
+        val models = async(Dispatchers.IO) { runInterruptible { edge.listModels() } }
+        val health = async(Dispatchers.IO) { attempt { runtimeApi.health().data } }
+        val count = async(Dispatchers.IO) { attempt { runtimeApi.listHistory(limit = 1).data?.total } }
+        val readyIds = models.await().filter { it.readyToUse }.map { it.id }.toSet()
         RuntimeInfo(
             port = edge.client.mimOEPort,
             mimApiRoot = EdgeRuntime.WELLNESS_API_ROOT,
-            mimHealth = attempt { runtimeApi.health().data },
+            mimHealth = health.await(),
             models = Models.ALL.map { spec ->
                 RuntimeModel(
                     id = spec.download.id,
@@ -112,7 +120,8 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                     ready = spec.download.id in readyIds,
                 )
             },
-            nudgeCount = attempt { runtimeApi.listHistory(limit = 1).data?.total },
+            nudgeCount = count.await(),
+            runtimeReady = edge.client.isMimOEReady,
         )
     }
 
