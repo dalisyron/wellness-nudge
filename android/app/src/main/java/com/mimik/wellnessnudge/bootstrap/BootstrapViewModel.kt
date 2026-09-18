@@ -9,6 +9,7 @@ import com.mimik.wellnessnudge.BuildConfig
 import com.mimik.wellnessnudge.api.NudgeApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,13 +46,26 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
         NudgeApi.create(mimBaseUrl(edge.client.mimOEPort), BuildConfig.WELLNESS_API_KEY)
     }
 
+    // The run in progress, so a second start can't race it.
+    private var runJob: Job? = null
+
+    // Hash of the mim this run deployed. Saved only once every model is in place, so an
+    // interrupted first-run download can't unlock the offline fast path with models missing.
+    private var deployedHash: String? = null
+
+    /**
+     * Starts setup from the beginning. Only [BootstrapState.NotStarted] starts a run: the
+     * activity calls this on every onCreate, and a recreation (theme, font size, locale) must
+     * not restart setup that is running, waiting for the user, or showing a failure.
+     */
     fun start() {
-        if (_state.value is BootstrapState.Ready) return
+        if (_state.value != BootstrapState.NotStarted || runJob?.isActive == true) return
         _state.value = BootstrapState.Step(BootstrapState.Phase.START_RUNTIME)
-        viewModelScope.launch(Dispatchers.IO) { run() }
+        runJob = viewModelScope.launch(Dispatchers.IO) { run() }
     }
 
     fun retry() {
+        if (runJob?.isActive == true) return
         _state.value = BootstrapState.NotStarted
         start()
     }
@@ -176,9 +190,9 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
             if (wellness.error != null) {
                 Log.w(TAG, "wellness-nudge deploy: ${wellness.error.message}")
             } else {
-                // Remember we deployed this exact tar so the next launch
-                // can fast-path if the bundle hasn't changed.
-                prefs.edit().putString(KEY_DEPLOYED_HASH, bundledHash).apply()
+                // Remember we deployed this exact tar so the next launch can fast-path if the
+                // bundle hasn't changed, once the models are in place too (rememberDeployment).
+                deployedHash = bundledHash
             }
 
             // 5. Snapshot what mILM already has and build the setup items.
@@ -253,6 +267,7 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 Log.i(TAG, "Model ${spec.download.id} ready")
+                if ((_state.value as? BootstrapState.Setup)?.allReady == true) rememberDeployment()
             } else {
                 updateItem(idx) {
                     it.copy(
@@ -336,7 +351,13 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Lets the next launch take the offline fast path: the mim is deployed and every model is ready. */
+    private fun rememberDeployment() {
+        deployedHash?.let { prefs.edit().putString(KEY_DEPLOYED_HASH, it).apply() }
+    }
+
     private fun transitionToReady() {
+        rememberDeployment()
         _state.value = BootstrapState.Ready(
             mimBaseUrl = mimBaseUrl(edge.client.mimOEPort),
             apiKey = BuildConfig.WELLNESS_API_KEY,

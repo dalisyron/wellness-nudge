@@ -36,14 +36,15 @@ sealed class BootstrapState {
 
     data class Failed(val phase: Phase, val message: String, val cause: Throwable? = null) : BootstrapState()
 
-    enum class Phase(val label: String) {
-        START_RUNTIME("Starting mimOE runtime"),
-        LOGIN("Logging in"),
-        DEPLOY_MILM("Deploying AI inference service"),
-        DEPLOY_MIM("Deploying wellness-nudge"),
-        QUEUE_MODELS("Checking AI models"),
-        DOWNLOAD_MODELS("Downloading AI models"),
-        READY("Ready"),
+    /** Setup steps in order. The setup screen owns the copy for each. */
+    enum class Phase {
+        START_RUNTIME,
+        LOGIN,
+        DEPLOY_MILM,
+        DEPLOY_MIM,
+        QUEUE_MODELS,
+        DOWNLOAD_MODELS,
+        READY,
     }
 }
 

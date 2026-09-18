@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mimik.wellnessnudge.bootstrap.BootstrapState
 import com.mimik.wellnessnudge.bootstrap.BootstrapViewModel
 import com.mimik.wellnessnudge.ui.WellnessApp
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
@@ -29,9 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Keep screen on during first-run model downloads.
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
+        // Starts setup on first launch and after process death; a no-op once it is under way.
         bootstrapVm.start()
 
         setContent {
@@ -44,8 +43,22 @@ class MainActivity : ComponentActivity() {
                 )
                 onDispose {}
             }
+            val state by bootstrapVm.state.collectAsStateWithLifecycle()
+            // Keep the screen on only while setup works (first-run model downloads take minutes).
+            val working = when (val current = state) {
+                BootstrapState.NotStarted, is BootstrapState.Step -> true
+                is BootstrapState.Setup -> current.anyInFlight
+                is BootstrapState.Ready, is BootstrapState.Failed -> false
+            }
+            DisposableEffect(working) {
+                if (working) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                onDispose {}
+            }
             WellnessTheme(darkTheme = darkTheme) {
-                val state by bootstrapVm.state.collectAsStateWithLifecycle()
                 WellnessApp(
                     bootstrap = state,
                     onRetry = bootstrapVm::retry,
