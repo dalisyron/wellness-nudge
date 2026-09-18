@@ -64,10 +64,13 @@ const createNudge = ({ metrics, model, temperature, maxTokens }) => {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserMessage(clean) },
       ];
+      // Wall-clock time of the on-device inference call only (excludes the
+      // client's HTTP hop), so the app can show "generated in 4.2 s".
+      const startedAt = Date.now();
       return aiClient.chat(messages, { model, temperature, maxTokens })
-        .then((completion) => ({ category, completion }));
+        .then((completion) => ({ category, completion, latencyMs: Date.now() - startedAt }));
     })
-    .then(({ category, completion }) => {
+    .then(({ category, completion, latencyMs }) => {
       const choice = completion && completion.choices && completion.choices[0];
       const text = choice && choice.message && choice.message.content;
       if (!text || !text.trim()) {
@@ -101,6 +104,7 @@ const createNudge = ({ metrics, model, temperature, maxTokens }) => {
         category,
         nudge: nudgeText,
         model: completion.model,
+        latencyMs,
         helpful: 'unset',
       };
 
@@ -109,9 +113,12 @@ const createNudge = ({ metrics, model, temperature, maxTokens }) => {
         .catch(() => null)
         .then(() => ({
           id,
+          ts,
           nudge: nudgeText,
           category,
+          userGoal,
           model: completion.model,
+          latencyMs,
           finishReason: choice.finish_reason,
           usage: completion.usage,
           metricsUsed: clean,
