@@ -1,6 +1,10 @@
 package com.mimik.wellnessnudge.snapshots
 
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.foryou.ForYouContent
 import com.mimik.wellnessnudge.ui.foryou.ForYouScreen
 import com.mimik.wellnessnudge.ui.foryou.ForYouUiState
@@ -18,6 +22,13 @@ class ForYouScreenTest {
     @Test
     fun loaded() = paparazzi.snapshotThemes("for_you") { ForYou(ListsPreviewData.forYou()) }
 
+    /** The first card scrolled partly away: it dissolves into the edge under the status bar. */
+    @Test
+    fun scrolled() = paparazzi.snapshotThemes("for_you_scrolled") {
+        val offset = with(LocalDensity.current) { 120.dp.roundToPx() }
+        ForYou(ListsPreviewData.forYou(), rememberLazyListState(1, offset))
+    }
+
     @Test
     fun empty() = paparazzi.snapshotThemes("for_you_empty") { ForYou(ListsPreviewData.forYou(PreviewData.tipsEmpty)) }
 
@@ -31,7 +42,7 @@ class ForYouScreenTest {
 }
 
 @Composable
-private fun ForYou(state: ForYouUiState) {
+private fun ForYou(state: ForYouUiState, listState: LazyListState = rememberLazyListState()) {
     TabFrame(TopLevelTab.ForYou) { contentPadding ->
         ForYouScreen(
             state = state,
@@ -40,6 +51,7 @@ private fun ForYou(state: ForYouUiState) {
             onRetry = {},
             onCreateNudge = {},
             contentPadding = contentPadding,
+            listState = listState,
         )
     }
 }

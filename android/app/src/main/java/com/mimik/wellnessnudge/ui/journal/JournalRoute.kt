@@ -2,6 +2,7 @@ package com.mimik.wellnessnudge.ui.journal
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
@@ -35,6 +36,8 @@ fun JournalRoute(
     val viewModel: JournalViewModel = viewModel(
         factory = viewModelFactory { initializer { JournalViewModel(repository, zone) } },
     )
+    // The clock follows time zone changes; the days regroup with it.
+    LaunchedEffect(zone) { viewModel.setZone(zone) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.reload() }
     JournalScreen(
@@ -46,5 +49,6 @@ fun JournalRoute(
         onCreateNudge = onCreateNudge,
         contentPadding = contentPadding,
         modifier = modifier,
+        onMessageShown = viewModel::onMessageShown,
     )
 }

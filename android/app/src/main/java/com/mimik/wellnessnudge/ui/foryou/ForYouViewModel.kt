@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mimik.wellnessnudge.api.TipCard
 import com.mimik.wellnessnudge.api.TipsResponse
 import com.mimik.wellnessnudge.data.NudgeRepository
+import com.mimik.wellnessnudge.ui.format.withTypographicQuotes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -26,7 +28,6 @@ data class HelpfulNudge(val id: String, val ts: Long, val text: String)
 @Immutable
 data class FocusArea(
     val category: String,
-    val intro: String?,
     /** How many recent nudges asked about this goal. */
     val recentMentions: Int,
     val helpful: List<HelpfulNudge>,
@@ -49,18 +50,19 @@ data class ForYouUiState(
     val content: ForYouContent = ForYouContent.Loading,
     /** A pull to refresh is running. Quiet reloads don't set it. */
     val refreshing: Boolean = false,
+    /** A one-off snackbar message, e.g. a pull to refresh that failed over loaded cards. */
+    val message: String? = null,
 )
 
 /** For you's state: the mim's tips, which it builds from the helpful nudges on the phone. */
 class ForYouViewModel(private val repository: NudgeRepository) : ViewModel() {
 
-    private val failed = MutableStateFlow(false)
-    private val refreshing = MutableStateFlow(false)
+    private val status = MutableStateFlow(LoadStatus())
     private var loading: Job? = null
 
     val uiState: StateFlow<ForYouUiState> =
-        combine(repository.tipsFlow, failed, refreshing) { tips, failed, refreshing ->
-            ForYouUiState(forYouContent(tips, failed), refreshing)
+        combine(repository.tipsFlow, status) { tips, status ->
+            ForYouUiState(forYouContent(tips, status.failed), status.refreshing, status.message)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -68,27 +70,33 @@ class ForYouViewModel(private val repository: NudgeRepository) : ViewModel() {
             initialValue = ForYouUiState(forYouContent(repository.tipsFlow.value, false)),
         )
 
-    /** Reloads without the pull indicator: when the tab comes back into view, and on Retry. */
+    /** Reloads without the pull indicator: when the tab comes back into view, and on Try again. */
     fun reload() {
         load()
     }
 
-    /** Pull to refresh: the indicator stays up until the tips are back, and briefly at least. */
+    /**
+     * Pull to refresh: the indicator stays up until the tips are back, and briefly at least.
+     * If they can't be reloaded while cards are on screen, a message says so.
+     */
     fun refresh() {
-        if (refreshing.value) return
-        refreshing.value = true
+        if (status.value.refreshing) return
+        status.update { it.copy(refreshing = true) }
         viewModelScope.launch {
             val started = TimeSource.Monotonic.markNow()
             load().join()
             delay(MinRefreshTime - started.elapsedNow())
-            refreshing.value = false
+            val stale = status.value.failed && repository.tipsFlow.value != null
+            status.update { it.copy(refreshing = false, message = if (stale) "Couldn’t refresh just now." else it.message) }
         }
     }
 
+    fun onMessageShown() = status.update { it.copy(message = null) }
+
     // One load at a time: a pull during a quiet reload waits for that reload.
     private fun load(): Job = loading?.takeIf { it.isActive } ?: viewModelScope.launch {
-        failed.value = false
-        failed.value = try {
+        status.update { it.copy(failed = false) }
+        val failed = try {
             repository.tips()
             false
         } catch (e: CancellationException) {
@@ -96,7 +104,14 @@ class ForYouViewModel(private val repository: NudgeRepository) : ViewModel() {
         } catch (e: Exception) {
             true
         }
+        status.update { it.copy(failed = failed) }
     }.also { loading = it }
+
+    private data class LoadStatus(
+        val failed: Boolean = false,
+        val refreshing: Boolean = false,
+        val message: String? = null,
+    )
 }
 
 /**
@@ -109,13 +124,15 @@ internal fun forYouContent(tips: TipsResponse?, failed: Boolean): ForYouContent 
     else -> ForYouContent.Loading
 }
 
-/** Null for a tip card without helpful nudges: it would have nothing to show. */
+/**
+ * Null for a tip card without helpful nudges: it would have nothing to show. The card's
+ * intro, the mim's template, isn't shown: the card's header already says what it would.
+ */
 private fun TipCard.toFocusArea(): FocusArea? {
-    val helpful = helpfulNudges.orEmpty().map { HelpfulNudge(it.id, it.ts, it.nudge.trim()) }
+    val helpful = helpfulNudges.orEmpty().map { HelpfulNudge(it.id, it.ts, it.nudge.trim().withTypographicQuotes()) }
     if (helpful.isEmpty()) return null
     return FocusArea(
         category = category,
-        intro = intro?.takeIf { it.isNotBlank() },
         recentMentions = recentMentions ?: 0,
         helpful = helpful,
     )

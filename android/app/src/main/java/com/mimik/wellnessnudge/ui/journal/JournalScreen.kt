@@ -34,21 +34,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FilterAltOff
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -66,15 +71,21 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import com.mimik.wellnessnudge.data.Feedback
+import com.mimik.wellnessnudge.ui.components.BottomBarScrim
 import com.mimik.wellnessnudge.ui.components.EmptyState
+import com.mimik.wellnessnudge.ui.components.FooterFade
 import com.mimik.wellnessnudge.ui.components.IconBadge
+import com.mimik.wellnessnudge.ui.components.ListEdgeFade
+import com.mimik.wellnessnudge.ui.components.ListTopScrim
 import com.mimik.wellnessnudge.ui.components.ScreenTitle
 import com.mimik.wellnessnudge.ui.components.SecondaryButton
 import com.mimik.wellnessnudge.ui.components.SectionHeader
 import com.mimik.wellnessnudge.ui.components.SkeletonBlock
 import com.mimik.wellnessnudge.ui.components.SuggestionChip
+import com.mimik.wellnessnudge.ui.components.TextAction
 import com.mimik.wellnessnudge.ui.components.WellnessCard
 import com.mimik.wellnessnudge.ui.components.canvasBackdrop
+import com.mimik.wellnessnudge.ui.components.scrolledFraction
 import com.mimik.wellnessnudge.ui.format.CategoryStyle
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
 import com.mimik.wellnessnudge.ui.format.dayLabel
@@ -89,8 +100,12 @@ import java.time.LocalDate
  * headers and filtered by rating. Tapping an entry opens it; pulling down reloads.
  * Stateless: [JournalRoute] connects it to [JournalViewModel].
  *
+ * The list dissolves at both ends instead of being cut: into the edge under the status bar
+ * once scrolled, and into the canvas above the floating tab bar.
+ *
  * @param contentPadding bottom space taken by the floating tab bar; the list scrolls under it.
  * @param listState the scroll position, hoisted so tests can render the list scrolled.
+ * @param onMessageShown [JournalUiState.message] has been shown.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,10 +119,20 @@ fun JournalScreen(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    onMessageShown: () -> Unit = {},
 ) {
     val colors = WellnessTheme.colors
     val pullState = rememberPullToRefreshState()
     val pinnedDay by rememberPinnedDay(listState, (state.content as? JournalContent.Loaded)?.days.orEmpty())
+    val snackbarHostState = remember { SnackbarHostState() }
+    val latestOnMessageShown by rememberUpdatedState(onMessageShown)
+    state.message?.let { message ->
+        LaunchedEffect(message) {
+            snackbarHostState.showSnackbar(message)
+            latestOnMessageShown()
+        }
+    }
+    val edgeFade = with(LocalDensity.current) { ListEdgeFade.toPx() }
     PullToRefreshBox(
         isRefreshing = state.refreshing,
         onRefresh = onRefresh,
@@ -152,7 +177,7 @@ fun JournalScreen(
                         item(key = TitleKey) { JournalTitle(subtitle = countLabel(content, state.filter)) }
                         filters(state.filter, onSelectFilter)
                         if (content.days.isEmpty()) {
-                            item(key = "no-matches") { NoMatches(state.filter) }
+                            item(key = "no-matches") { NoMatches(state.filter, onShowAll = { onSelectFilter(JournalFilter.All) }) }
                         } else {
                             days(content.days, pinnedDay = { pinnedDay }, onOpenNudge)
                         }
@@ -161,14 +186,33 @@ fun JournalScreen(
                 }
             }
         }
+        ListTopScrim(progress = { listState.scrolledFraction(edgeFade) })
+        BottomBarScrim(contentPadding, Modifier.align(Alignment.BottomCenter))
+        // Material's snackbar pads itself by 12 dp; this lines it up with the screen margin.
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(contentPadding)
+                .padding(horizontal = WellnessSpacing.ScreenMargin - 12.dp),
+        )
     }
 }
 
-/** "12 nudges · newest first", or "5 of 12 nudges · newest first" under a filter. */
+/**
+ * "12 nudges · newest first"; "5 of 12 nudges · newest first" under a filter, or "0 of 12
+ * nudges" when it matches none. When the phone holds more nudges than the list loads (the
+ * newest 100): "Latest 100 of 137 nudges", or "5 of the latest 100 nudges" under a filter.
+ */
 private fun countLabel(content: JournalContent.Loaded, filter: JournalFilter): String {
-    val total = if (content.total == 1) "1 nudge" else "${content.total} nudges"
-    val count = if (filter == JournalFilter.All) total else "${content.shown} of $total"
-    return "$count · newest first"
+    fun nudges(count: Int) = if (count == 1) "1 nudge" else "$count nudges"
+    val count = when {
+        filter == JournalFilter.All && content.partial -> "Latest ${content.total} of ${nudges(content.stored)}"
+        filter == JournalFilter.All -> nudges(content.total)
+        content.partial -> "${content.shown} of the latest ${nudges(content.total)}"
+        else -> "${content.shown} of ${nudges(content.total)}"
+    }
+    return if (content.shown == 0 || content.partial) count else "$count · newest first"
 }
 
 @Composable
@@ -245,21 +289,22 @@ private fun LazyListScope.days(
     }
 }
 
-/** Room between the last entry and the tab bar. */
+/** Room between the last entry and the tab bar, clear of the fade above it. */
 private fun LazyListScope.end() {
-    item(key = "end") { Spacer(Modifier.height(16.dp)) }
+    item(key = "end") { Spacer(Modifier.height(FooterFade)) }
 }
 
 /**
  * The day's eyebrow. While [pinned] it covers the entries scrolling under it with the canvas
- * itself, so it reads cleanly without looking like a bar.
+ * itself, so it reads cleanly without looking like a bar: solid behind the eyebrow and its
+ * gap, then fading out below it, so entries dissolve rather than slide under the eyebrow.
  */
 @Composable
 private fun DayHeader(day: JournalDay, pinned: Boolean, modifier: Modifier = Modifier) {
     SectionHeader(
         title = dayLabel(day.entries.first().ts, LocalWellnessClock.current),
         modifier = modifier
-            .canvasBackdrop(WellnessTheme.colors, enabled = pinned, fade = WellnessSpacing.EyebrowGap)
+            .canvasBackdrop(WellnessTheme.colors, enabled = pinned, fadeBelow = ListEdgeFade)
             .padding(horizontal = WellnessSpacing.ScreenMargin)
             .padding(top = DayHeaderTop, bottom = WellnessSpacing.EyebrowGap),
     )
@@ -359,10 +404,11 @@ private fun FeedbackMark(feedback: Feedback) {
             tint = colors.success,
             modifier = Modifier.size(MarkSize),
         )
+        // A mild opinion, not an error: a neutral mark, told apart by its shape.
         Feedback.NotHelpful -> Icon(
             Icons.Rounded.ThumbDown,
             contentDescription = "Rated not helpful",
-            tint = colors.danger,
+            tint = colors.textSecondary,
             modifier = Modifier.size(MarkSize),
         )
         Feedback.Unset -> Unit
@@ -495,15 +541,15 @@ private fun LoadErrorCard(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         IconBadge(Icons.Rounded.ErrorOutline, colors.warning, size = 40.dp)
         Spacer(Modifier.height(16.dp))
-        Text("Couldn't load your journal", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+        Text("Couldn’t load your journal", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "The on-device service didn't answer. It may still be starting, so give it a moment and try again.",
+            text = "The on-device service didn’t answer. It may still be starting, so give it a moment and try again.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
         Spacer(Modifier.height(20.dp))
-        SecondaryButton(text = "Retry", onClick = onRetry, icon = Icons.Rounded.Refresh)
+        SecondaryButton(text = "Try again", onClick = onRetry, icon = Icons.Rounded.Refresh)
     }
 }
 
@@ -526,22 +572,25 @@ private fun EmptyJournal(onCreateNudge: () -> Unit, modifier: Modifier = Modifie
     }
 }
 
-/** A filter that matches nothing, while other nudges exist: the filter's mark and a line on it. */
+/**
+ * A filter that matches nothing, while other nudges exist: the filter's mark, a line on it in
+ * the words of the rating buttons, and the way back to the whole list.
+ */
 @Composable
-private fun NoMatches(filter: JournalFilter, modifier: Modifier = Modifier) {
+private fun NoMatches(filter: JournalFilter, onShowAll: () -> Unit, modifier: Modifier = Modifier) {
     val colors = WellnessTheme.colors
     val copy = when (filter) {
         JournalFilter.Helpful -> NoMatchesCopy(
             Icons.Rounded.ThumbUp, colors.success,
-            "No helpful nudges yet", "Rate a nudge as helpful and it will show up here.",
+            "No helpful nudges yet", "Nudges you rate “Helpful” land here.",
         )
         JournalFilter.NotHelpful -> NoMatchesCopy(
-            Icons.Rounded.ThumbDown, colors.danger,
-            "Nothing marked not helpful", "Nudges you rate as not helpful will show up here.",
+            Icons.Rounded.ThumbDown, colors.textSecondary,
+            "No “Not really” ratings yet", "Nudges you rate “Not really” land here.",
         )
         JournalFilter.Unrated -> NoMatchesCopy(
             Icons.Rounded.DoneAll, colors.accent,
-            "You've rated every nudge", "New nudges wait here until you rate them.",
+            "You’ve rated every nudge", "New nudges wait here until you rate them.",
         )
         // All matches every nudge; an empty journal shows the empty state instead.
         JournalFilter.All -> return
@@ -558,6 +607,9 @@ private fun NoMatches(filter: JournalFilter, modifier: Modifier = Modifier) {
         Text(copy.title, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Text(copy.body, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, textAlign = TextAlign.Center)
+        // The action's own 48 dp target brings the gap to 16 dp above its pill.
+        Spacer(Modifier.height(10.dp))
+        TextAction(text = "Show all nudges", icon = Icons.Rounded.FilterAltOff, onClick = onShowAll)
     }
 }
 

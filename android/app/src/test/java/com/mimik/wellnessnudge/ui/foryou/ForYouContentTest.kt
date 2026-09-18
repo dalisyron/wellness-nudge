@@ -4,7 +4,6 @@ import com.mimik.wellnessnudge.api.TipCard
 import com.mimik.wellnessnudge.api.TipNudge
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ForYouContentTest {
@@ -47,9 +46,18 @@ class ForYouContentTest {
         val area = (forYouContent(PreviewData.tips.copy(items = listOf(sparse)), failed = false) as ForYouContent.Loaded)
             .areas.single()
 
-        assertNull(area.intro)
         assertEquals(0, area.recentMentions)
         assertEquals("Dim the lights by 9:30 PM.", area.helpful.single().text)
+    }
+
+    @Test
+    fun quotesGetTypographicApostrophes() {
+        val card = TipCard("improve-sleep", null, null, 1, null, listOf(TipNudge("nudge_1", 1L, "Don't scroll in bed.")))
+
+        val quote = (forYouContent(PreviewData.tips.copy(items = listOf(card)), failed = false) as ForYouContent.Loaded)
+            .areas.single().helpful.single()
+
+        assertEquals("Don\u2019t scroll in bed.", quote.text)
     }
 
     @Test

@@ -35,11 +35,17 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,26 +57,34 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mimik.wellnessnudge.ui.components.BottomBarScrim
 import com.mimik.wellnessnudge.ui.components.EmptyState
 import com.mimik.wellnessnudge.ui.components.Eyebrow
+import com.mimik.wellnessnudge.ui.components.FooterFade
 import com.mimik.wellnessnudge.ui.components.IconBadge
+import com.mimik.wellnessnudge.ui.components.ListEdgeFade
+import com.mimik.wellnessnudge.ui.components.ListTopScrim
 import com.mimik.wellnessnudge.ui.components.ScreenTitle
 import com.mimik.wellnessnudge.ui.components.SecondaryButton
 import com.mimik.wellnessnudge.ui.components.SkeletonBlock
 import com.mimik.wellnessnudge.ui.components.WellnessCard
+import com.mimik.wellnessnudge.ui.components.scrolledFraction
 import com.mimik.wellnessnudge.ui.format.CategoryStyle
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
-import com.mimik.wellnessnudge.ui.format.shortDateLabel
+import com.mimik.wellnessnudge.ui.format.dayLabel
 import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
 /**
  * The For you tab: the nudges the user found helpful, gathered on one card per goal they
  * have been asking about lately, most recent focus first. Tapping a quote opens its nudge;
- * pulling down reloads. Stateless: [ForYouRoute] connects it to [ForYouViewModel].
+ * pulling down reloads. Stateless: [ForYouRoute] connects it to [ForYouViewModel]. The list
+ * dissolves at both ends instead of being cut: into the edge under the status bar once
+ * scrolled, and into the canvas above the floating tab bar.
  *
  * @param contentPadding bottom space taken by the floating tab bar; the list scrolls under it.
  * @param listState the scroll position, hoisted so tests can render the list scrolled.
+ * @param onMessageShown [ForYouUiState.message] has been shown.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,9 +97,19 @@ fun ForYouScreen(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    onMessageShown: () -> Unit = {},
 ) {
     val colors = WellnessTheme.colors
     val pullState = rememberPullToRefreshState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val latestOnMessageShown by rememberUpdatedState(onMessageShown)
+    state.message?.let { message ->
+        LaunchedEffect(message) {
+            snackbarHostState.showSnackbar(message)
+            latestOnMessageShown()
+        }
+    }
+    val edgeFade = with(LocalDensity.current) { ListEdgeFade.toPx() }
     PullToRefreshBox(
         isRefreshing = state.refreshing,
         onRefresh = onRefresh,
@@ -136,25 +160,38 @@ fun ForYouScreen(
                 }
             }
         }
+        ListTopScrim(progress = { listState.scrolledFraction(edgeFade) })
+        BottomBarScrim(contentPadding, Modifier.align(Alignment.BottomCenter))
+        // Material's snackbar pads itself by 12 dp; this lines it up with the screen margin.
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(contentPadding)
+                .padding(horizontal = WellnessSpacing.ScreenMargin - 12.dp),
+        )
     }
 }
 
+/** The tab's title; the empty state leaves out the subtitle, which its own copy repeats. */
 @Composable
-private fun ForYouTitle(modifier: Modifier = Modifier) {
+private fun ForYouTitle(modifier: Modifier = Modifier, showSubtitle: Boolean = true) {
     Column(
         modifier
             .fillMaxWidth()
             .padding(horizontal = WellnessSpacing.ScreenMargin)
             .padding(top = TitleTop, bottom = TitleBottom),
     ) {
-        ScreenTitle(title = "For you", eyebrow = "Learned on this phone")
-        // ScreenTitle's subtitle, with balanced lines: it wraps without leaving a word alone.
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Nudges you found helpful, grouped by what you've been focusing on lately.",
-            style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
-            color = WellnessTheme.colors.textSecondary,
-        )
+        ScreenTitle(title = "For you", eyebrow = "From your ratings, on this phone")
+        if (showSubtitle) {
+            // ScreenTitle's subtitle, with balanced lines: it wraps without leaving a word alone.
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Nudges you found helpful, grouped by what you’ve been focusing on lately.",
+                style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
+                color = WellnessTheme.colors.textSecondary,
+            )
+        }
     }
 }
 
@@ -162,14 +199,14 @@ private fun Modifier.cardSpacing() = this
     .padding(horizontal = WellnessSpacing.ScreenMargin)
     .padding(bottom = WellnessSpacing.ItemGap)
 
-/** Room between the last card and the tab bar. */
+/** Room between the last card and the tab bar, clear of the fade above it. */
 private fun LazyListScope.end() {
-    item(key = "end") { Spacer(Modifier.height(16.dp)) }
+    item(key = "end") { Spacer(Modifier.height(FooterFade)) }
 }
 
 /**
- * One goal: its badge, how many nudges helped and how often it came up lately, the mim's
- * intro, then each helpful nudge as a quote. The card is washed with the category's color.
+ * One goal: its badge, how many nudges helped and how often it came up lately, then each
+ * helpful nudge as a quote. The card is washed with the category's color.
  */
 @Composable
 private fun FocusCard(area: FocusArea, onOpenNudge: (id: String) -> Unit, modifier: Modifier = Modifier) {
@@ -197,12 +234,8 @@ private fun FocusCard(area: FocusArea, onOpenNudge: (id: String) -> Unit, modifi
                 )
             }
         }
-        if (area.intro != null) {
-            Spacer(Modifier.height(16.dp))
-            Text(area.intro, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-        }
-        area.helpful.forEach { nudge ->
-            Spacer(Modifier.height(QuoteGap))
+        area.helpful.forEachIndexed { index, nudge ->
+            Spacer(Modifier.height(if (index == 0) FirstQuoteGap else QuoteGap))
             HelpfulQuote(nudge, style.color, onClick = { onOpenNudge(nudge.id) })
         }
     }
@@ -238,7 +271,8 @@ private fun HelpfulQuote(nudge: HelpfulNudge, color: Color, onClick: () -> Unit)
         Column(Modifier.weight(1f)) {
             Text(nudge.text, style = WellnessTheme.type.nudgeQuote, color = WellnessTheme.colors.textPrimary)
             Spacer(Modifier.height(8.dp))
-            Eyebrow(shortDateLabel(nudge.ts, LocalWellnessClock.current))
+            // Named as the Journal names its days: "Yesterday", "Mon, Sep 14".
+            Eyebrow(dayLabel(nudge.ts, LocalWellnessClock.current))
         }
     }
 }
@@ -250,7 +284,6 @@ private fun PlaceholderCard(text: PlaceholderText, modifier: Modifier = Modifier
     val type = MaterialTheme.typography
     val title = with(density) { type.titleMedium.lineHeight.toDp() }
     val meta = with(density) { type.bodySmall.lineHeight.toDp() }
-    val body = with(density) { type.bodyMedium.lineHeight.toDp() }
     val quote = with(density) { WellnessTheme.type.nudgeQuote.lineHeight.toDp() }
     val date = with(density) { type.labelSmall.lineHeight.toDp() }
     WellnessCard(modifier.fillMaxWidth()) {
@@ -262,9 +295,7 @@ private fun PlaceholderCard(text: PlaceholderText, modifier: Modifier = Modifier
                 PlaceholderLine(meta, 0.56f, thickness = 10.dp)
             }
         }
-        Spacer(Modifier.height(16.dp))
-        text.intro.forEach { PlaceholderLine(body, it, thickness = 10.dp) }
-        Spacer(Modifier.height(QuoteGap))
+        Spacer(Modifier.height(FirstQuoteGap))
         Row(Modifier.height(IntrinsicSize.Min)) {
             SkeletonBlock(
                 Modifier
@@ -282,13 +313,13 @@ private fun PlaceholderCard(text: PlaceholderText, modifier: Modifier = Modifier
     }
 }
 
-/** Line lengths of a loading card's intro and quote, so the cards don't repeat. */
-private class PlaceholderText(val intro: List<Float>, val quote: List<Float>)
+/** Line lengths of a loading card's quote, so the cards don't repeat. */
+private class PlaceholderText(val quote: List<Float>)
 
 private val PlaceholderCards = listOf(
-    PlaceholderText(intro = listOf(1f, 0.9f), quote = listOf(1f, 0.96f, 0.58f)),
-    PlaceholderText(intro = listOf(0.97f, 0.64f), quote = listOf(1f, 0.92f, 0.76f, 0.4f)),
-    PlaceholderText(intro = listOf(1f, 0.84f), quote = listOf(0.95f, 1f, 0.5f)),
+    PlaceholderText(quote = listOf(1f, 0.96f, 0.58f)),
+    PlaceholderText(quote = listOf(1f, 0.92f, 0.76f, 0.4f)),
+    PlaceholderText(quote = listOf(0.95f, 1f, 0.5f)),
 )
 
 @Composable
@@ -313,29 +344,29 @@ private fun LoadErrorCard(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     WellnessCard(modifier.fillMaxWidth()) {
         IconBadge(Icons.Rounded.ErrorOutline, colors.warning, size = 40.dp)
         Spacer(Modifier.height(16.dp))
-        Text("Couldn't load your tips", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+        Text("Couldn’t load your helpful nudges", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "The on-device service didn't answer. It may still be starting, so give it a moment and try again.",
+            text = "The on-device service didn’t answer. It may still be starting, so give it a moment and try again.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
         Spacer(Modifier.height(20.dp))
-        SecondaryButton(text = "Retry", onClick = onRetry, icon = Icons.Rounded.Refresh)
+        SecondaryButton(text = "Try again", onClick = onRetry, icon = Icons.Rounded.Refresh)
     }
 }
 
 @Composable
 private fun EmptyForYou(onCreateNudge: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
-        ForYouTitle()
+        ForYouTitle(showSubtitle = false)
         // Spacers share whatever height is left, setting the state just above center; on a
         // short screen they collapse and the list scrolls instead.
         Spacer(Modifier.height(8.dp))
         Spacer(Modifier.weight(1f))
         EmptyState(
             title = "Nothing here yet",
-            body = "Mark a nudge as helpful and it will collect here, grouped by the goals you've been asking about.",
+            body = "Mark a nudge as helpful and it will collect here, grouped by the goals you’ve been asking about.",
             actionText = "Create a nudge",
             onAction = onCreateNudge,
         )
@@ -354,5 +385,8 @@ private val TitleTop = 12.dp
 
 /** From the title to the first card. */
 private val TitleBottom = 24.dp
+
+/** From a card's header to its first quote, and between quotes. */
+private val FirstQuoteGap = 16.dp
 private val QuoteGap = 20.dp
 private val QuoteShape = RoundedCornerShape(8.dp)

@@ -42,5 +42,6 @@ fun ForYouRoute(
         onCreateNudge = onCreateNudge,
         contentPadding = contentPadding,
         modifier = modifier,
+        onMessageShown = viewModel::onMessageShown,
     )
 }

@@ -36,6 +36,13 @@ class JournalScreenTest {
         Journal(ListsPreviewData.journal(), rememberLazyListState(5, offset))
     }
 
+    /** Scrolled a little, before any day pins: the title dissolves into the edge under the status bar. */
+    @Test
+    fun titleScrolled() = paparazzi.snapshotThemes("journal_title_scrolled") {
+        val offset = with(LocalDensity.current) { 70.dp.roundToPx() }
+        Journal(ListsPreviewData.journal(), rememberLazyListState(0, offset))
+    }
+
     /** A filter that matches nothing while other nudges exist. */
     @Test
     fun noMatches() = paparazzi.snapshotThemes("journal_no_matches") {
