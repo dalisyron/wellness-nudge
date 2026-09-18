@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("app.cash.paparazzi")
 }
 
 val versionName = "1.0"
@@ -43,10 +45,6 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
     }
 
     compileOptions {
