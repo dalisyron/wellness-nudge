@@ -89,6 +89,9 @@ android {
 // Paparazzi renders full 1008x2244 frames; give the test JVM room.
 tasks.withType<Test>().configureEach {
     maxHeapSize = "2g"
+    // -PsnapshotFullRes=true records snapshots at device resolution for close review;
+    // committed snapshots use Paparazzi's default, smaller output.
+    systemProperty("snapshot.fullRes", providers.gradleProperty("snapshotFullRes").getOrElse("false"))
 }
 
 dependencies {
