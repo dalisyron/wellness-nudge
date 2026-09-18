@@ -15,6 +15,9 @@ import java.util.concurrent.TimeUnit
 
 interface NudgeApi {
 
+    @GET("healthcheck")
+    suspend fun health(): Envelope<HealthStatus>
+
     @POST("nudge")
     suspend fun createNudge(@Body req: NudgeRequest): Envelope<NudgeResponse>
 

@@ -27,6 +27,12 @@ data class NudgeResponse(
     val finishReason: String?,
     val usage: Usage?,
     val metricsUsed: Map<String, Any?>?,
+    /** Inference time in ms, when the mim reports it; the app otherwise measures it. */
+    val latencyMs: Long? = null,
+    /** When the mim stored the nudge (unix ms). */
+    val ts: Long? = null,
+    /** The goal as the mim stored it; empty when none was sent. */
+    val userGoal: String? = null,
 ) {
     data class Usage(
         @SerializedName("prompt_tokens") val promptTokens: Int?,
@@ -45,6 +51,8 @@ data class NudgeHistoryItem(
     val nudge: String,
     val model: String?,
     val helpful: String,
+    /** Generation time in ms: from the record, or measured by the app when it created it. */
+    val latencyMs: Long? = null,
 )
 
 /** PUT /nudges/{id}/feedback body. */
@@ -71,3 +79,12 @@ data class TipNudge(
     val ts: Long,
     val nudge: String,
 )
+
+/** GET /healthcheck response body. */
+data class HealthStatus(
+    val status: String?,
+    val mim: String?,
+    val version: String?,
+) {
+    val isHealthy: Boolean get() = status == "ok"
+}

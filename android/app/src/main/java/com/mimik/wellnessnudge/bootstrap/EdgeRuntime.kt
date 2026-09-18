@@ -69,11 +69,17 @@ class EdgeRuntime(private val context: Context) {
 
     private val gson = Gson()
 
-    /** Block on a thread-pool until the runtime is up. */
+    /**
+     * Block on a thread-pool until the runtime is up. Idempotent: when setup is retried after
+     * a later step failed, the runtime is already running, and the SDK refuses a second start
+     * (startMimOESynchronously returns false while its service is bound), so reuse it.
+     */
     @Throws(IllegalStateException::class)
     fun startRuntime(): Int {
-        val started = client.startMimOESynchronously()
-        check(started) { "MimOEClient.startMimOESynchronously() returned false" }
+        if (!client.isMimOEReady) {
+            val started = client.startMimOESynchronously()
+            check(started) { "MimOEClient.startMimOESynchronously() returned false" }
+        }
         // mILM uses the same API key our mim already expects via INFERENCE_API_KEY=1234.
         MimOEClientMilm.setMilmApiKey(context, "1234")
         return client.mimOEPort

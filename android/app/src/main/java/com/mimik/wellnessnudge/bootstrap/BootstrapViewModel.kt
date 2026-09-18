@@ -6,11 +6,17 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mimik.wellnessnudge.BuildConfig
+import com.mimik.wellnessnudge.api.NudgeApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,13 +44,31 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
 
     val edgeRuntime: EdgeRuntime get() = edge
 
+    // Used by the runtime sheet; created on first use, once the runtime (and its port) is up.
+    private val runtimeApi: NudgeApi by lazy {
+        NudgeApi.create(mimBaseUrl(edge.client.mimOEPort), BuildConfig.WELLNESS_API_KEY)
+    }
+
+    // The run in progress, so a second start can't race it.
+    private var runJob: Job? = null
+
+    // Hash of the mim this run deployed. Saved only once every model is in place, so an
+    // interrupted first-run download can't unlock the offline fast path with models missing.
+    private var deployedHash: String? = null
+
+    /**
+     * Starts setup from the beginning. Only [BootstrapState.NotStarted] starts a run: the
+     * activity calls this on every onCreate, and a recreation (theme, font size, locale) must
+     * not restart setup that is running, waiting for the user, or showing a failure.
+     */
     fun start() {
-        if (_state.value is BootstrapState.Ready) return
+        if (_state.value != BootstrapState.NotStarted || runJob?.isActive == true) return
         _state.value = BootstrapState.Step(BootstrapState.Phase.START_RUNTIME)
-        viewModelScope.launch(Dispatchers.IO) { run() }
+        runJob = viewModelScope.launch(Dispatchers.IO) { run() }
     }
 
     fun retry() {
+        if (runJob?.isActive == true) return
         _state.value = BootstrapState.NotStarted
         start()
     }
@@ -70,6 +94,44 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
         if (idx < 0) return
         val spec = Models.ALL.firstOrNull { it.download.id == modelId } ?: return
         viewModelScope.launch(Dispatchers.IO) { downloadModel(spec, idx) }
+    }
+
+    /**
+     * Collects what the runtime sheet shows: whether the runtime runs and on which port, the
+     * mim's health, which models mILM can serve, and how many nudges are stored. The reads run
+     * side by side, and all of them stop when the caller gives up (the SDK's blocking model
+     * list is interrupted). Meant for [BootstrapState.Ready].
+     */
+    suspend fun loadRuntimeInfo(): RuntimeInfo = coroutineScope {
+        val models = async(Dispatchers.IO) { runInterruptible { edge.listModels() } }
+        val health = async(Dispatchers.IO) { attempt { runtimeApi.health().data } }
+        val count = async(Dispatchers.IO) { attempt { runtimeApi.listHistory(limit = 1).data?.total } }
+        val readyIds = models.await().filter { it.readyToUse }.map { it.id }.toSet()
+        RuntimeInfo(
+            port = edge.client.mimOEPort,
+            mimApiRoot = EdgeRuntime.WELLNESS_API_ROOT,
+            mimHealth = health.await(),
+            models = Models.ALL.map { spec ->
+                RuntimeModel(
+                    id = spec.download.id,
+                    displayName = spec.displayName,
+                    technicalName = spec.technicalName,
+                    sizeBytes = spec.approxBytes,
+                    ready = spec.download.id in readyIds,
+                )
+            },
+            nudgeCount = count.await(),
+            runtimeReady = edge.client.isMimOEReady,
+        )
+    }
+
+    private suspend fun <T> attempt(block: suspend () -> T?): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        Log.d(TAG, "runtime info: ${t.message}")
+        null
     }
 
     private suspend fun run() {
@@ -109,11 +171,11 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                 val msg = t.message.orEmpty()
                 val friendly = if (msg.contains("edge ID token", ignoreCase = true) ||
                     msg.contains("Connection failed", ignoreCase = true)) {
-                    "We couldn't reach the mimik identity service to set up your local AI. " +
+                    "We couldn’t reach the mimik identity service to set up your local AI. " +
                         "This usually means the phone is offline or on an IPv6-only cellular " +
-                        "network. Connect to Wi-Fi and tap Retry."
+                        "network. Connect to Wi-Fi and tap Try again."
                 } else {
-                    "Couldn't log in to the mimik runtime: $msg"
+                    "Couldn’t activate the mimik runtime: $msg"
                 }
                 fail(BootstrapState.Phase.LOGIN, friendly, t)
                 return
@@ -137,9 +199,9 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
             if (wellness.error != null) {
                 Log.w(TAG, "wellness-nudge deploy: ${wellness.error.message}")
             } else {
-                // Remember we deployed this exact tar so the next launch
-                // can fast-path if the bundle hasn't changed.
-                prefs.edit().putString(KEY_DEPLOYED_HASH, bundledHash).apply()
+                // Remember we deployed this exact tar so the next launch can fast-path if the
+                // bundle hasn't changed, once the models are in place too (rememberDeployment).
+                deployedHash = bundledHash
             }
 
             // 5. Snapshot what mILM already has and build the setup items.
@@ -214,11 +276,12 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 Log.i(TAG, "Model ${spec.download.id} ready")
+                if ((_state.value as? BootstrapState.Setup)?.allReady == true) rememberDeployment()
             } else {
                 updateItem(idx) {
                     it.copy(
                         state = ModelSetupItem.State.Failed,
-                        errorMessage = "Download didn't complete. Check your connection and tap Retry.",
+                        errorMessage = "Download didn’t complete. Check your connection and tap Try again.",
                     )
                 }
             }
@@ -239,10 +302,10 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
             msg.contains("Unable to resolve", ignoreCase = true) ||
                 msg.contains("Failed to connect", ignoreCase = true) ||
                 msg.contains("UnknownHost", ignoreCase = true) ->
-                "Couldn't reach the download server. Check your internet and tap Retry."
+                "Couldn’t reach the download server. Check your internet and tap Try again."
             msg.contains("404", ignoreCase = true) ->
                 "This model file moved or is no longer available."
-            else -> "Download failed. Tap Retry to try again."
+            else -> "Download failed. Tap Try again."
         }
     }
 
@@ -283,7 +346,7 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun existingMimIsHealthy(port: Int): Boolean = withContext(Dispatchers.IO) {
         try {
-            val url = "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}/wellness-nudge/v1/healthcheck"
+            val url = "${mimBaseUrl(port)}/healthcheck"
             val client = OkHttpClient.Builder()
                 .connectTimeout(2, TimeUnit.SECONDS)
                 .readTimeout(2, TimeUnit.SECONDS)
@@ -297,13 +360,21 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Lets the next launch take the offline fast path: the mim is deployed and every model is ready. */
+    private fun rememberDeployment() {
+        deployedHash?.let { prefs.edit().putString(KEY_DEPLOYED_HASH, it).apply() }
+    }
+
     private fun transitionToReady() {
-        val port = edge.client.mimOEPort
+        rememberDeployment()
         _state.value = BootstrapState.Ready(
-            mimBaseUrl = "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}/wellness-nudge/v1",
+            mimBaseUrl = mimBaseUrl(edge.client.mimOEPort),
             apiKey = BuildConfig.WELLNESS_API_KEY,
         )
     }
+
+    private fun mimBaseUrl(port: Int): String =
+        "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}${EdgeRuntime.WELLNESS_API_ROOT}"
 
     private fun fail(phase: BootstrapState.Phase, message: String, cause: Throwable? = null) {
         _state.value = BootstrapState.Failed(phase, message, cause)

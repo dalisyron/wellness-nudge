@@ -32,15 +32,15 @@ CATEGORIES.forEach((c) => {
 const FUZZY_KEYWORDS = [
   { category: 'improve-sleep', keywords: ['sleep', 'bedtime', 'insomnia', 'rested', 'wake up', 'wake-up'] },
   { category: 'improve-recovery', keywords: ['recover', 'recovery', 'sore', 'soreness', 'muscle', 'rest day'] },
-  { category: 'reduce-fatigue', keywords: ['fatigue', 'tired', 'exhaust', 'drained', 'low energy', 'energy level'] },
-  { category: 'reduce-stress', keywords: ['stress', 'anxiety', 'anxious', 'tense', 'overwhelm', 'calm down', 'relax'] },
+  { category: 'reduce-fatigue', keywords: ['fatigue', 'tired', 'exhaust', 'drained', 'energy', 'sluggish'] },
+  { category: 'reduce-stress', keywords: ['stress', 'anxiety', 'anxious', 'tense', 'overwhelm', 'calm', 'relax', 'nervous'] },
   { category: 'improve-mood', keywords: ['mood', 'feel down', 'feeling down', 'feel-down', 'depress', 'sad', 'unhappy', 'cheer'] },
   {
     category: 'improve-fitness',
     keywords: [
       'fitness', 'train', 'training', 'run', 'running', 'jog',
       'exercise', 'workout', 'strength', 'cardio', 'endurance',
-      'marathon', '10k', '5k', 'hike', 'hiking',
+      'marathon', '10k', '5k', 'hike', 'hiking', 'move more', 'more active',
     ],
   },
   { category: 'weight-loss', keywords: ['weight', 'lose pound', 'lose weight', 'fat loss', 'slim', 'thinner', 'lose 10', 'lose 5'] },

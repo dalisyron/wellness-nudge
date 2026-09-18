@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.WellnessNudge" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.WellnessNudge" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/daybreak_bg</item>
+    </style>
+
+    <!-- Launch theme: the AndroidX splash screen on the theme canvas, showing the app icon. -->
+    <style name="Theme.WellnessNudge.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/daybreak_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.WellnessNudge</item>
+    </style>
 </resources>

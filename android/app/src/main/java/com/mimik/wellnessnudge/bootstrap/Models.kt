@@ -31,7 +31,7 @@ object Models {
         displayName = "Nudge writer",
         technicalName = "SmolLM2 360M · Q8_0",
         purpose = "Writes the short, personalized wellness suggestion you see each day.",
-        approxBytes = 384L * 1024 * 1024, // ~384 MB
+        approxBytes = 386_400_000L, // Q8_0 GGUF file, ~368 MiB
     )
 
     val QWEN3 = ModelSpec(
@@ -44,9 +44,16 @@ object Models {
         displayName = "Goal classifier",
         technicalName = "Qwen3 1.7B · Q8_0",
         purpose = "Reads ambiguous goals and groups your past nudges into Personal Tips.",
-        approxBytes = 1900L * 1024 * 1024, // ~1.9 GB
+        approxBytes = 1_834_400_000L, // Q8_0 GGUF file, ~1.7 GiB
     )
 
     /** All models required before the main app is usable. */
     val ALL: List<ModelSpec> = listOf(SMOLLM2, QWEN3)
 }
+
+/**
+ * A model's name as people know it, e.g. "SmolLM2 360M" for "smollm2-360m" (its technical
+ * name without the quantization); an id the app doesn't ship is shown as it is.
+ */
+fun modelDisplayName(id: String): String =
+    Models.ALL.firstOrNull { it.download.id == id }?.technicalName?.substringBefore(" · ") ?: id

@@ -1,0 +1,175 @@
+package com.mimik.wellnessnudge.snapshots
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import com.android.resources.Density
+import com.mimik.wellnessnudge.ui.components.FloatingNavBar
+import com.mimik.wellnessnudge.ui.components.RuntimeStatus
+import com.mimik.wellnessnudge.ui.components.WellnessBottomSheetFrame
+import com.mimik.wellnessnudge.ui.navigation.TopLevelTab
+import com.mimik.wellnessnudge.ui.today.TodayEditor
+import com.mimik.wellnessnudge.ui.today.TodayEditorContent
+import com.mimik.wellnessnudge.ui.today.TodayPreviewData
+import com.mimik.wellnessnudge.ui.today.TodayScreen
+import com.mimik.wellnessnudge.ui.today.TodayUiState
+import org.junit.Rule
+import org.junit.Test
+
+/** The Today tab under the floating tab bar, as the app shell shows it. */
+class TodayScreenTest {
+
+    @get:Rule
+    val paparazzi = wellnessPaparazzi()
+
+    /** At rest, no goal yet: the whole flow, down to the goal's placeholder and suggestions, sits above the button. */
+    @Test
+    fun default() = paparazzi.snapshotThemes("today") { Today(TodayPreviewData.default) }
+
+    /** After the first "Sample day", scrolled to the end, where its goal selects a suggestion. */
+    @Test
+    fun sampleDay() = paparazzi.snapshotThemes("today_sample_day") {
+        Today(TodayPreviewData.sampleDay, scrolledToEnd = true)
+    }
+
+    /** The runtime hasn't answered yet. */
+    @Test
+    fun starting() = paparazzi.snapshotThemes("today_starting") {
+        Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Starting))
+    }
+
+    /** The runtime doesn't answer: a line above the button says so, with the way to the details. */
+    @Test
+    fun unavailable() = paparazzi.snapshotThemes("today_unavailable") {
+        Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Error))
+    }
+
+    @Test
+    fun goalFocused() = paparazzi.snapshotThemes("today_goal_focused") {
+        Today(TodayPreviewData.typing, scrolledToEnd = true, focusGoal = true)
+    }
+
+    @Test
+    fun sleepEditor() = paparazzi.snapshotThemes("today_sleep_editor") {
+        Today(TodayPreviewData.default, editor = TodayEditor.Sleep)
+    }
+
+    @Test
+    fun hrvEditor() = paparazzi.snapshotThemes("today_hrv_editor") {
+        Today(TodayPreviewData.default, editor = TodayEditor.Hrv)
+    }
+
+    /**
+     * Text at 130%, on a frame tall enough for the whole screen: nothing may clip. The body
+     * signals keep their columns, "Resting HR" on two lines.
+     */
+    @Test
+    fun largeText() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = Pixel9ProXL.copy(fontScale = 1.3f, screenHeight = 2640))
+        paparazzi.snapshotThemes("today_large_text") { Today(TodayPreviewData.sampleDay) }
+    }
+
+    /**
+     * Text at 115%, Android's first step up, on the phone's own frame. The flow no longer fits
+     * above the button, so the goal moves up under the header; the body card, "Resting HR" on
+     * two lines, runs under the fade.
+     */
+    @Test
+    fun largerText() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = Pixel9ProXL.copy(fontScale = 1.15f))
+        paparazzi.snapshotThemes("today_larger_text") { Today(TodayPreviewData.default) }
+    }
+
+    /** A 411 dp phone: the goal goes first, and the body card's values step down to fit. */
+    @Test
+    fun narrowPhone() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = NarrowPhone)
+        paparazzi.snapshotThemes("today_narrow") { Today(TodayPreviewData.default) }
+    }
+
+    /** The runtime doesn't answer on the 411 dp phone: over the content under it, the notice fades it out. */
+    @Test
+    fun narrowPhoneUnavailable() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = NarrowPhone)
+        paparazzi.snapshotThemes("today_narrow_unavailable") {
+            Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Error))
+        }
+    }
+
+    /**
+     * A small phone, scrolled to the end: the columns can't hold the widest values, so the
+     * signals turn into tiles, stacked, since half-width tiles would cut "Resting HR" short.
+     */
+    @Test
+    fun smallPhone() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = SmallPhone)
+        paparazzi.snapshotThemes("today_small_phone") { Today(TodayPreviewData.default, scrolledToEnd = true) }
+    }
+}
+
+/** 1080 x 2400 px at 420 dpi: 411 x 914 dp, as a Pixel 8. */
+private val NarrowPhone = Pixel9ProXL.copy(
+    screenWidth = 1080,
+    screenHeight = 2400,
+    xdpi = 420,
+    ydpi = 420,
+    density = Density.create(420),
+)
+
+/** 720 x 1600 px at 320 dpi: 360 x 800 dp, the narrowest common phone. */
+private val SmallPhone = Pixel9ProXL.copy(
+    screenWidth = 720,
+    screenHeight = 1600,
+    xdpi = 320,
+    ydpi = 320,
+    density = Density.create(320),
+)
+
+/**
+ * [TodayScreen] for [state] with the tab bar over it. An [editor] is drawn in place of its
+ * sheet window, which Paparazzi can't capture.
+ */
+@Composable
+private fun Today(
+    state: TodayUiState,
+    scrolledToEnd: Boolean = false,
+    focusGoal: Boolean = false,
+    editor: TodayEditor? = null,
+) {
+    val goalFocus = remember { FocusRequester() }
+    Box(Modifier.fillMaxSize()) {
+        TodayScreen(
+            state = state,
+            onGoalChange = {},
+            onSampleDay = {},
+            onOpenEditor = {},
+            onMetricChange = { _, _ -> },
+            onCloseEditor = {},
+            onGenerate = {},
+            onOpenRuntime = {},
+            contentPadding = tabBarPadding(),
+            scrollState = rememberScrollState(if (scrolledToEnd) Int.MAX_VALUE else 0),
+            goalFocusRequester = goalFocus,
+        )
+        FloatingNavBar(
+            items = TopLevelTab.entries.map { it.item },
+            selectedIndex = TopLevelTab.Today.ordinal,
+            onSelect = {},
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+        if (editor != null) {
+            WellnessBottomSheetFrame {
+                TodayEditorContent(editor = editor, metrics = state.metrics, onMetricChange = { _, _ -> }, onDone = {})
+            }
+        }
+    }
+    if (focusGoal) {
+        LaunchedEffect(goalFocus) { goalFocus.requestFocus() }
+    }
+}

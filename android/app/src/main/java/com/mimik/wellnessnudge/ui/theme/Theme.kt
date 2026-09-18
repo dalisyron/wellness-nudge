@@ -1,31 +1,48 @@
 package com.mimik.wellnessnudge.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+
+internal val LocalWellnessColors = staticCompositionLocalOf { DarkWellnessColors }
+internal val LocalWellnessTypeExtras = staticCompositionLocalOf { WellnessTypeExtrasDefault }
+
+private val DarkColorScheme = DarkWellnessColors.toColorScheme()
+private val LightColorScheme = LightWellnessColors.toColorScheme()
 
 /**
- * The single, opinionated brand theme. We deliberately don't pull dynamic
- * colors from the user's wallpaper — the cream + forest-green identity is
- * the point. Dark mode is intentionally not supported yet; Stitch only
- * shipped a light spec.
+ * The Daybreak theme: a deep-ink dark theme and a "morning paper" light theme, following
+ * the system setting by default. No dynamic color; the brand palette is the point.
  */
 @Composable
-fun WellnessNudgeTheme(
+fun WellnessTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val statusColors = WellnessStatusColors(
-        ready = WellnessColors.StatusReady,
-        connecting = WellnessColors.StatusConnecting,
-        offline = WellnessColors.StatusOffline,
-        memoryBackground = WellnessColors.MemoryBackground,
-        memoryText = WellnessColors.MemoryText,
-    )
-    CompositionLocalProvider(LocalStatusColors provides statusColors) {
+    val colors = if (darkTheme) DarkWellnessColors else LightWellnessColors
+    CompositionLocalProvider(
+        LocalWellnessColors provides colors,
+        LocalWellnessTypeExtras provides WellnessTypeExtrasDefault,
+    ) {
         MaterialTheme(
-            colorScheme = WellnessLightColorScheme,
+            colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
             typography = WellnessTypography,
-            content = content,
-        )
+            shapes = WellnessMaterialShapes,
+        ) {
+            CompositionLocalProvider(LocalContentColor provides colors.textPrimary, content = content)
+        }
     }
+}
+
+/** Daybreak extensions to [MaterialTheme]: the extended palette and the extra text styles. */
+object WellnessTheme {
+    val colors: WellnessColors
+        @Composable @ReadOnlyComposable get() = LocalWellnessColors.current
+
+    val type: WellnessTypeExtras
+        @Composable @ReadOnlyComposable get() = LocalWellnessTypeExtras.current
 }
