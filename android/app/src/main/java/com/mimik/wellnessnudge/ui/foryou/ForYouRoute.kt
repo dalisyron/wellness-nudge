@@ -1,30 +1,25 @@
 package com.mimik.wellnessnudge.ui.foryou
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mimik.wellnessnudge.data.NudgeRepository
-import com.mimik.wellnessnudge.ui.components.DaybreakBackground
-import com.mimik.wellnessnudge.ui.components.ScreenTitle
-import com.mimik.wellnessnudge.ui.components.SkeletonBlock
-import com.mimik.wellnessnudge.ui.theme.WellnessShapes
-import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 
 /**
- * For you tab. PLACEHOLDER until the For you screen (spec 4.5) replaces it.
+ * For you tab: [ForYouScreen] backed by a [ForYouViewModel]. The tips reload quietly each
+ * time the tab comes back into view, so a nudge just marked helpful shows up here.
  *
- * @param onOpenNudge opens a saved nudge (`nudge/saved/{id}`), e.g. from a quote.
+ * @param onOpenNudge opens a saved nudge (`nudge/saved/{id}`) from its quote.
  * @param onCreateNudge switches to the Today tab (empty-state action).
  * @param contentPadding bottom space taken by the floating tab bar and the navigation bar
- *   under it (or the keyboard, while it is taller); pass it to the list as content padding.
+ *   under it (or the keyboard, while it is taller); the list scrolls under it.
  */
 @Composable
 fun ForYouRoute(
@@ -34,24 +29,18 @@ fun ForYouRoute(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    DaybreakBackground(modifier) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(contentPadding)
-                .padding(horizontal = WellnessSpacing.ScreenMargin, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap),
-        ) {
-            ScreenTitle(eyebrow = "Placeholder", title = "ForYouRoute", subtitle = "The For you screen replaces this.")
-            repeat(3) {
-                SkeletonBlock(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    WellnessShapes.Card,
-                )
-            }
-        }
-    }
+    val viewModel: ForYouViewModel = viewModel(
+        factory = viewModelFactory { initializer { ForYouViewModel(repository) } },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.reload() }
+    ForYouScreen(
+        state = state,
+        onOpenNudge = onOpenNudge,
+        onRefresh = viewModel::refresh,
+        onRetry = viewModel::reload,
+        onCreateNudge = onCreateNudge,
+        contentPadding = contentPadding,
+        modifier = modifier,
+    )
 }
