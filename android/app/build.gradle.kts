@@ -86,6 +86,11 @@ android {
     }
 }
 
+// Paparazzi renders full 1008x2244 frames; give the test JVM room.
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "2g"
+}
+
 dependencies {
     // mimik SDK — public S3 Maven repo, developer-tier variant
     implementation("com.mimik.mim-oe-sdk-android:mim-oe-ai-client-developer:3.18.0")
