@@ -12,6 +12,7 @@
 //       category:  one of 9 wellness categories,
 //       nudge:     generated nudge text,
 //       model:     model id,
+//       latencyMs: on-device inference time in ms (absent on older records),
 //       helpful:   "unset" | "yes" | "no"
 //     }
 
