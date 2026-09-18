@@ -2,11 +2,6 @@ package com.mimik.wellnessnudge.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -28,12 +23,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -48,13 +50,16 @@ import com.mimik.wellnessnudge.ui.theme.WellnessMotion
 import com.mimik.wellnessnudge.ui.theme.WellnessShapes
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
+import kotlinx.coroutines.delay
 
 /**
  * Pill for one choice in a group: goal suggestions on Today, filters in the Journal. The
  * visible pill is 36 dp tall inside a 48 dp touch target, like Material chips, so rows
- * of chips need no extra vertical spacing. Selected, it takes an accent tint, border and a
- * brighter label; [checkWhenSelected] also leads the label with a check mark (Journal
- * filters), so the choice doesn't rest on color alone.
+ * of chips need no extra vertical spacing. It is a control, so on paper it is a white pill
+ * with a soft shadow, like the buttons (read-only chips such as [SignalChip] stay a flat
+ * wash). Selected, it takes an accent tint, border and a brighter label; [checkWhenSelected]
+ * also leads the label with a check mark (Journal filters), so the choice doesn't rest on
+ * color alone.
  */
 @Composable
 fun SuggestionChip(
@@ -66,13 +71,16 @@ fun SuggestionChip(
 ) {
     val colors = WellnessTheme.colors
     val spec = tween<Color>(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing)
-    val container by animateColorAsState(if (selected) colors.tint(colors.accent) else colors.chipFill, spec, "chipBg")
+    // On paper the tint is laid over the white pill, so the shadow doesn't show through it.
+    val selectedFill = if (colors.isDark) colors.tint(colors.accent) else colors.tint(colors.accent).compositeOver(colors.controlFill)
+    val container by animateColorAsState(if (selected) selectedFill else colors.controlFill, spec, "chipBg")
     val border by animateColorAsState(if (selected) colors.accent else colors.controlBorder, spec, "chipBorder")
     val label by animateColorAsState(if (selected) colors.accentContent else colors.textSecondary, spec, "chipLabel")
     Row(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .heightIn(min = 36.dp)
+            .paperShadow(colors, WellnessShapes.Pill, elevation = 3.dp)
             .clip(WellnessShapes.Pill)
             .background(container)
             .border(1.dp, border, WellnessShapes.Pill)
@@ -178,7 +186,8 @@ fun IconBadge(
 /**
  * Status light. [pulsing] adds a soft glow that breathes outwards, e.g. for a live runtime;
  * still frames (previews, animations off) show the glow at rest. The glow spills past
- * [size] without taking layout space.
+ * [size] without taking layout space. The slow pulse runs at about 30 frames a second, so
+ * the display can lower its refresh rate, and rests while the dot is scrolled out of view.
  */
 @Composable
 fun StatusDot(
@@ -187,26 +196,28 @@ fun StatusDot(
     pulsing: Boolean = false,
     size: Dp = 8.dp,
 ) {
-    val animate = pulsing && rememberAnimationsEnabled()
-    val pulse = if (animate) {
-        rememberInfiniteTransition(label = "statusPulse").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
-            label = "statusPulseProgress",
-        )
-    } else {
-        null
+    var onScreen by remember { mutableStateOf(true) }
+    val animate = pulsing && onScreen && rememberAnimationsEnabled()
+    val pulse = remember { mutableFloatStateOf(-1f) }
+    if (animate) {
+        LaunchedEffect(Unit) {
+            val start = withFrameMillis { it }
+            while (true) {
+                delay(SlowFrameMillis)
+                withFrameMillis { now -> pulse.floatValue = ((now - start) % PulseMillis).toFloat() / PulseMillis }
+            }
+        }
     }
     // Its own layer, so each pulse frame redraws only the dot.
     Canvas(
         modifier
             .size(size)
+            .onScreenChanged { onScreen = it }
             .graphicsLayer(),
     ) {
         val radius = this.size.minDimension / 2f
         if (pulsing) {
-            val progress = pulse?.value
+            val progress = pulse.floatValue.takeIf { animate && it >= 0f }
             // Moving: a glow that grows and fades. At rest: a soft halo twice the dot's size.
             val glowRadius = if (progress != null) radius * (1.2f + 1.3f * progress) else radius * 2f
             val alpha = if (progress != null) 0.5f * (1f - progress) else 0.3f
@@ -276,3 +287,5 @@ fun OnDevicePill(
         )
     }
 }
+
+private const val PulseMillis = 1_800L

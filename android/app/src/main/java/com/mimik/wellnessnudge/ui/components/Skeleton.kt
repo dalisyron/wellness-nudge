@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,8 +44,9 @@ import kotlinx.coroutines.launch
 fun Modifier.shimmer(): Modifier = this then ShimmerElement
 
 /**
- * A loading placeholder block with a moving highlight; size it with [modifier]. It uses
- * surfaceRaised on ink and surfaceSunken on paper, so it reads on the canvas and on cards.
+ * A loading placeholder block with a moving highlight; size it with [modifier]. It takes the
+ * canvas tone (`skeleton`), or the lighter `skeletonOnSurface` inside a [WellnessCard] or a
+ * sheet, which provide [LocalOnSurface], so it reads wherever it sits.
  */
 @Composable
 fun SkeletonBlock(
@@ -55,10 +57,13 @@ fun SkeletonBlock(
     Box(
         modifier
             .clip(shape)
-            .background(if (colors.isDark) colors.surfaceRaised else colors.surfaceSunken)
+            .background(if (LocalOnSurface.current) colors.skeletonOnSurface else colors.skeleton)
             .shimmer(),
     )
 }
+
+/** True inside a surface (a card or a sheet): placeholders there take the on-surface tone. */
+internal val LocalOnSurface = staticCompositionLocalOf { false }
 
 private data object ShimmerElement : ModifierNodeElement<ShimmerNode>() {
     override fun create() = ShimmerNode()

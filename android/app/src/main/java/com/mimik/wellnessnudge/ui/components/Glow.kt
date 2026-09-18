@@ -56,7 +56,23 @@ fun Modifier.glow(
     offsetY: Dp = 0.dp,
     spread: Dp = 0.dp,
 ): Modifier {
-    if (alpha <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return this
+    if (alpha <= 0f) return this
+    return glow(brush, shape, { alpha }, blurRadius, offsetY, spread)
+}
+
+/**
+ * [glow] whose [alpha] is read while drawing, so it can animate (e.g. fade in with the nudge
+ * it lights) and only redraw.
+ */
+fun Modifier.glow(
+    brush: Brush,
+    shape: Shape,
+    alpha: () -> Float,
+    blurRadius: Dp = 24.dp,
+    offsetY: Dp = 0.dp,
+    spread: Dp = 0.dp,
+): Modifier {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return this
     return drawWithCache { blurredShape(brush, shape, alpha, blurRadius, offsetY, spread) }
 }
 
@@ -76,7 +92,7 @@ internal fun Modifier.paperShadow(colors: WellnessColors, shape: Shape, elevatio
 private fun CacheDrawScope.blurredShape(
     brush: Brush,
     shape: Shape,
-    alpha: Float,
+    alpha: () -> Float,
     blurRadius: Dp,
     offsetY: Dp,
     spread: Dp,
@@ -88,11 +104,14 @@ private fun CacheDrawScope.blurredShape(
     val roundRect = (outline as? Outline.Rounded)?.roundRect?.takeIf { it.hasEvenCorners() }
     val shapePath = if (roundRect == null) outline.toPath().asAndroidPath() else null
     val paint = Paint()
-    brush.applyTo(glowSize, paint, alpha)
     val blurPx = blurRadius.toPx()
     if (blurPx > 0f) paint.asFrameworkPaint().maskFilter = BlurMaskFilter(blurPx, BlurMaskFilter.Blur.NORMAL)
     val dy = offsetY.toPx() - spreadPx
     return onDrawBehind {
+        val strength = alpha()
+        if (strength <= 0f) return@onDrawBehind
+        // Cheap to repeat: a gradient's shader is only rebuilt when the size changes.
+        brush.applyTo(glowSize, paint, strength)
         drawIntoCanvas { canvas ->
             val native = canvas.nativeCanvas
             val saved = native.save()

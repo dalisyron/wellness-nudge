@@ -73,7 +73,6 @@ import com.mimik.wellnessnudge.ui.components.RuntimeStatus
 import com.mimik.wellnessnudge.ui.components.ScreenTitle
 import com.mimik.wellnessnudge.ui.components.SecondaryButton
 import com.mimik.wellnessnudge.ui.components.SectionHeader
-import com.mimik.wellnessnudge.ui.components.SignalChip
 import com.mimik.wellnessnudge.ui.components.SkeletonBlock
 import com.mimik.wellnessnudge.ui.components.SleepDuration
 import com.mimik.wellnessnudge.ui.components.SleepStagesBar
@@ -87,6 +86,8 @@ import com.mimik.wellnessnudge.ui.format.CategoryStyle
 import com.mimik.wellnessnudge.ui.format.formatSleep
 import com.mimik.wellnessnudge.ui.format.formatSteps
 import com.mimik.wellnessnudge.ui.navigation.TopLevelTab
+import com.mimik.wellnessnudge.ui.nudge.SignalChips
+import com.mimik.wellnessnudge.ui.nudge.toSignals
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import com.mimik.wellnessnudge.ui.theme.Daybreak
 import com.mimik.wellnessnudge.ui.theme.WellnessShapes
@@ -108,10 +109,10 @@ class ComponentGalleryTest {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(300.dp),
+                    .height(240.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                NudgeOrb(size = 200.dp, mode = OrbMode.Idle)
+                NudgeOrb(size = 160.dp, mode = OrbMode.Idle)
             }
             Row(
                 Modifier.fillMaxWidth(),
@@ -128,6 +129,10 @@ class ComponentGalleryTest {
                 Text("Good morning", style = MaterialTheme.typography.displayLarge)
                 Spacer(Modifier.width(10.dp))
                 NudgeOrb(size = 22.dp)
+            }
+            // Above an error: unlit, without its halo.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                LabeledOrb(80.dp, OrbMode.Dimmed, "Dimmed · 80")
             }
         }
     }
@@ -326,7 +331,7 @@ class ComponentGalleryTest {
                     Modifier.padding(horizontal = WellnessSpacing.ScreenMargin),
                     verticalArrangement = Arrangement.spacedBy(WellnessSpacing.SectionGap),
                 ) {
-                    Text("Last night's sleep", style = MaterialTheme.typography.titleLarge)
+                    Text("Last night’s sleep", style = MaterialTheme.typography.titleLarge)
                     EditorRow("Total sleep", formatSleep(6.5f), 6.5f, 0f..12f, colors.sleep, steps = 47)
                     EditorRow("Deep sleep", "15%", 15f, 0f..40f, colors.deepSleep)
                     SecondaryButton(text = "Done", onClick = {}, modifier = Modifier.fillMaxWidth())
@@ -350,9 +355,9 @@ class ComponentGalleryTest {
                         TextButton(
                             onClick = {},
                             colors = ButtonDefaults.textButtonColors(contentColor = SnackbarDefaults.actionColor),
-                        ) { Text("Retry") }
+                        ) { Text("Try again") }
                     },
-                ) { Text("Couldn't save your feedback.") }
+                ) { Text("Couldn’t save your feedback.") }
             }
         }
     }
@@ -389,7 +394,8 @@ internal fun ActionsPage() {
                 text = "Start using Wellness Nudge",
                 onClick = {},
                 modifier = Modifier.fillMaxWidth(),
-                icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                icon = null,
+                trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
             )
         }
         Section("Secondary button") {
@@ -405,7 +411,7 @@ internal fun ActionsPage() {
                 CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete", onClick = {})
                 Spacer(Modifier.weight(1f))
                 TextAction(text = "Sample day", icon = Icons.Rounded.Shuffle, onClick = {})
-                TextAction(text = "Retry", icon = Icons.Rounded.Refresh, onClick = {})
+                TextAction(text = "Try again", icon = Icons.Rounded.Refresh, onClick = {})
             }
         }
         Section("On-device pill") {
@@ -426,7 +432,7 @@ internal fun ChipsPage() {
         Section("Suggestion chips") {
             // Chips lay out 48 dp tall around a 36 dp pill, which spaces the rows.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Sleep better tonight", "Lower stress", "More energy", "Recover from training", "Move more today")
+                listOf("Sleep better tonight", "Lower stress", "Feel less tired", "Recover from training", "Exercise more today")
                     .forEachIndexed { index, text -> SuggestionChip(text = text, selected = index == 0, onClick = {}) }
             }
         }
@@ -443,15 +449,8 @@ internal fun ChipsPage() {
             }
         }
         Section("Signals") {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SignalChip("${formatSleep(6.5f)} sleep", colors.sleep)
-                SignalChip("Deep 15%", colors.deepSleep)
-                SignalChip("REM 18%", colors.rem)
-                SignalChip("Resting HR 64", colors.restingHr)
-                SignalChip("HRV 45 ms", colors.hrv)
-                SignalChip("${formatSteps(7000)} steps", colors.steps)
-                SignalChip("Goal · Sleep better tonight", colors.accent)
-            }
+            // As the Nudge screen lays them out: a dot per metric, a flag for the goal.
+            SignalChips(PreviewData.request.toSignals())
         }
         Section("Icon badges and status") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -513,7 +512,7 @@ private fun DeleteDialogMock() {
         Column(Modifier.padding(24.dp)) {
             Text(
                 "Delete this nudge?",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 color = AlertDialogDefaults.titleContentColor,
             )
             Spacer(Modifier.height(16.dp))

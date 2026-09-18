@@ -74,7 +74,7 @@ val WellnessTypography = Typography(
     displaySmall = serif(NewsreaderDisplay, 28, 34, -0.1f),
     headlineLarge = serif(NewsreaderDisplay, 26, 32, -0.1f),
     headlineMedium = serif(NewsreaderDisplay, 24, 30, -0.1f),
-    headlineSmall = serif(NewsreaderDisplay, 26, 35),
+    headlineSmall = serif(NewsreaderDisplay, 28, 38),
     titleLarge = manrope(FontWeight.SemiBold, 20, 26),
     titleMedium = manrope(FontWeight.SemiBold, 16, 22),
     titleSmall = manrope(FontWeight.SemiBold, 14, 20),
@@ -93,6 +93,8 @@ class WellnessTypeExtras(
     val metricXL: TextStyle,
     /** Tile metric value. Tabular figures. */
     val metricL: TextStyle,
+    /** Metric value in a column of the compact Body card, where three sit side by side. Tabular figures. */
+    val metricM: TextStyle,
     /** Unit next to a metric value; pair it with textSecondary. Tabular figures. */
     val metricUnit: TextStyle,
     /** Quoted helpful nudges in For you. */
@@ -105,6 +107,7 @@ internal val WellnessTypeExtrasDefault = WellnessTypeExtras(
     // Metric values animate ("Sample day"), so their digits keep a fixed width.
     metricXL = manrope(FontWeight.Medium, 44, 48, -1.0f).tabular(),
     metricL = manrope(FontWeight.Medium, 32, 36, -0.6f).tabular(),
+    metricM = manrope(FontWeight.Medium, 28, 32, -0.5f).tabular(),
     metricUnit = manrope(FontWeight.Medium, 14, 18).tabular(),
     nudgeQuote = serif(Newsreader, 18, 26, style = FontStyle.Italic),
     nudgePreview = serif(Newsreader, 18, 25),

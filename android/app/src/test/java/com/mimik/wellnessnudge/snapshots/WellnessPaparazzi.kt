@@ -3,11 +3,15 @@ package com.mimik.wellnessnudge.snapshots
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +42,7 @@ import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import com.mimik.wellnessnudge.ui.components.DaybreakBackground
+import com.mimik.wellnessnudge.ui.components.FloatingNavBarDefaults
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import com.mimik.wellnessnudge.ui.theme.Manrope
@@ -61,6 +66,16 @@ fun wellnessPaparazzi(deviceConfig: DeviceConfig = Pixel9ProXL) = Paparazzi(
     theme = "android:Theme.Material.NoActionBar",
     maxPercentDifference = 0.1,
     useDeviceResolution = System.getProperty("snapshot.fullRes") == "true",
+)
+
+/**
+ * The bottom padding the app shell gives tab content: the floating tab bar, its margin and
+ * the navigation bar under it.
+ */
+@Composable
+fun tabBarPadding(): PaddingValues = PaddingValues(
+    bottom = FloatingNavBarDefaults.Height + FloatingNavBarDefaults.BottomMargin +
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
 )
 
 /** Records [content] once per theme, as `<name>_dark` and `<name>_light`. */

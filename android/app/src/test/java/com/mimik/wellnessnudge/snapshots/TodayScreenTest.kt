@@ -1,7 +1,6 @@
 package com.mimik.wellnessnudge.snapshots
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
@@ -11,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import com.mimik.wellnessnudge.ui.components.FloatingNavBar
-import com.mimik.wellnessnudge.ui.components.FloatingNavBarDefaults
 import com.mimik.wellnessnudge.ui.components.WellnessBottomSheetFrame
 import com.mimik.wellnessnudge.ui.navigation.TopLevelTab
 import com.mimik.wellnessnudge.ui.today.TodayEditor
@@ -82,7 +80,7 @@ private fun Today(
             onCloseEditor = {},
             onGenerate = {},
             onOpenRuntime = {},
-            contentPadding = PaddingValues(bottom = FloatingNavBarDefaults.occupiedHeight()),
+            contentPadding = tabBarPadding(),
             scrollState = rememberScrollState(if (scrolledToEnd) Int.MAX_VALUE else 0),
             goalFocusRequester = goalFocus,
         )

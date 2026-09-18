@@ -117,6 +117,10 @@ class WellnessColors(
     val shadowSpot: Color,
     /** Highlight that sweeps across skeleton placeholders. */
     val shimmer: Color,
+    /** Loading placeholders on the canvas. */
+    val skeleton: Color,
+    /** Loading placeholders inside a card or a sheet, a step lighter on ink so they read on the surface. */
+    val skeletonOnSurface: Color,
 ) {
     /** Horizontal Daybreak gradient for buttons and progress fills. */
     val daybreak: Brush get() = Daybreak.Horizontal
@@ -185,6 +189,9 @@ val DarkWellnessColors = WellnessColors(
     shadowAmbient = Color.Transparent,
     shadowSpot = Color.Transparent,
     shimmer = Color.White.copy(alpha = 0.05f),
+    skeleton = Color(0xFF1C1C29),
+    // White at 8% over the surface: #282831, 1.24:1 (surfaceRaised would be 1.08:1 there).
+    skeletonOnSurface = Color.White.copy(alpha = 0.08f),
 )
 
 val LightWellnessColors = WellnessColors(
@@ -240,6 +247,8 @@ val LightWellnessColors = WellnessColors(
     shadowAmbient = Ink.copy(alpha = 0.05f),
     shadowSpot = Ink.copy(alpha = 0.08f),
     shimmer = Color.White.copy(alpha = 0.45f),
+    skeleton = Color(0xFFECE9E4),
+    skeletonOnSurface = Color(0xFFECE9E4),
 )
 
 /**

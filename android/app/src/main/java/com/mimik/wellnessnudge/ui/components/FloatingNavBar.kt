@@ -11,15 +11,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Icon
@@ -37,7 +39,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessMotion
@@ -54,16 +55,12 @@ data class NavBarItem(val label: String, val icon: ImageVector, val selectedIcon
 object FloatingNavBarDefaults {
     val Height = 64.dp
     val BottomMargin = 12.dp
-
-    /** How much of the screen bottom the bar covers, navigation-bar inset included. Pad scrolling content by it. */
-    @Composable
-    fun occupiedHeight(): Dp =
-        Height + BottomMargin + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 }
 
 /**
- * The detached tab bar floating above the navigation-bar inset. The selection capsule
- * glides between tabs; it applies its own insets and margins.
+ * The detached tab bar floating above the navigation-bar inset, clear of a camera cutout at
+ * the side in landscape. The selection capsule glides between tabs; it applies its own
+ * insets and margins.
  */
 @Composable
 fun FloatingNavBar(
@@ -83,6 +80,7 @@ fun FloatingNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
             .padding(start = 20.dp, end = 20.dp, bottom = FloatingNavBarDefaults.BottomMargin)
             .height(FloatingNavBarDefaults.Height)
             .paperShadow(colors, WellnessShapes.Pill, elevation = 14.dp)

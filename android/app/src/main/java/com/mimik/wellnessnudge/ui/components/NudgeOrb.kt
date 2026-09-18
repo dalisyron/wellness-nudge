@@ -9,15 +9,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -26,12 +32,17 @@ import com.mimik.wellnessnudge.ui.theme.Daybreak
 import com.mimik.wellnessnudge.ui.theme.WellnessMotion
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** How the orb moves: a slow orbit at rest, a quick breathing orbit while the model works. */
-enum class OrbMode { Idle, Thinking, Still }
+/**
+ * How the orb moves: a slow orbit at rest, a quick breathing orbit while the model works, a
+ * still pose, or [Dimmed]: still and unlit, without its halo, for when the model couldn't
+ * finish (it fades there over a reveal's length, e.g. as it lands above an error).
+ */
+enum class OrbMode { Idle, Thinking, Still, Dimmed }
 
 /**
  * The on-device AI, drawn as a light source: Daybreak-colored light orbiting inside a
@@ -43,9 +54,11 @@ enum class OrbMode { Idle, Thinking, Still }
  * the glow ends in a hard edge; e.g. keep the generating orb outside the scrolling content.
  *
  * One draw pass with brushes built once per size; frames only move them, so animating
- * allocates nothing, and the orb has its own layer, so frames redraw nothing else. Shows a
- * still pose for [OrbMode.Still], in previews and snapshot tests, and when the user turned
- * animations off.
+ * allocates nothing, and the orb has its own layer, so frames redraw nothing else. The slow
+ * idle orbit runs at about 30 frames a second, which lets the display lower its refresh
+ * rate; only thinking gets every frame. The orbit rests while the orb is scrolled out of
+ * view. Shows a still pose for [OrbMode.Still] and [OrbMode.Dimmed], in previews and
+ * snapshot tests, and when the user turned animations off.
  */
 @Composable
 fun NudgeOrb(
@@ -53,17 +66,24 @@ fun NudgeOrb(
     modifier: Modifier = Modifier,
     mode: OrbMode = OrbMode.Idle,
 ) {
-    val animate = mode != OrbMode.Still && rememberAnimationsEnabled()
+    var onScreen by remember { mutableStateOf(true) }
+    val animate = (mode == OrbMode.Idle || mode == OrbMode.Thinking) && onScreen && rememberAnimationsEnabled()
     val energy = animateFloatAsState(
         targetValue = if (mode == OrbMode.Thinking) 1f else 0f,
         animationSpec = tween(900, easing = WellnessMotion.Easing),
         label = "orbEnergy",
+    )
+    val dim = animateFloatAsState(
+        targetValue = if (mode == OrbMode.Dimmed) 1f else 0f,
+        animationSpec = tween(WellnessMotion.RevealMillis, easing = WellnessMotion.Easing),
+        label = "orbDim",
     )
     val clock = remember { OrbClock() }
     if (animate) {
         LaunchedEffect(clock) {
             var last = withFrameNanos { it }
             while (true) {
+                if (energy.value < RestingEnergy) delay(SlowFrameMillis)
                 withFrameNanos { now ->
                     clock.advance(seconds = ((now - last) / 1e9f).coerceIn(0f, 0.1f), energy = energy.value)
                     last = now
@@ -76,11 +96,15 @@ fun NudgeOrb(
         orbit = { clock.orbit },
         breath = { clock.breath },
         energy = { energy.value },
-        modifier = modifier,
+        dim = { dim.value },
+        modifier = modifier.onScreenChanged { onScreen = it },
     )
 }
 
-/** One orb frame. The providers are read while drawing, so animating them only redraws. */
+/**
+ * One orb frame. The providers are read while drawing, so animating them only redraws.
+ * [dim] (0 to 1) takes the halo away and fades and desaturates the sphere.
+ */
 @Composable
 internal fun OrbCanvas(
     size: Dp,
@@ -88,6 +112,7 @@ internal fun OrbCanvas(
     breath: () -> Float,
     energy: () -> Float,
     modifier: Modifier = Modifier,
+    dim: () -> Float = { 0f },
 ) {
     val haloAlpha = WellnessTheme.colors.haloAlpha
     Spacer(
@@ -97,7 +122,7 @@ internal fun OrbCanvas(
             .graphicsLayer()
             .drawWithCache {
                 val brushes = OrbBrushes(radius = this.size.minDimension / 2f, haloAlpha = haloAlpha)
-                onDrawBehind { drawOrb(brushes, orbit(), breath(), energy()) }
+                onDrawBehind { drawOrb(brushes, orbit(), breath(), energy(), dim()) }
             },
     )
 }
@@ -223,35 +248,57 @@ private class OrbBrushes(val radius: Float, haloAlpha: Float) {
     )
 }
 
-private fun DrawScope.drawOrb(brushes: OrbBrushes, orbit: Float, breath: Float, energy: Float) {
+private fun DrawScope.drawOrb(brushes: OrbBrushes, orbit: Float, breath: Float, energy: Float, dim: Float) {
     val r = brushes.radius
     val pulse = 1f + BreathAmplitude * sin(TwoPi * breath / BreathSeconds) * energy
     val warmAxis = WarmAxisStart + TwoPi * orbit / IdleLoopSeconds
+    val lit = 1f - dim
     translate(center.x, center.y) {
         scale(pulse, pivot = Offset.Zero) {
-            scale(1f + 0.12f * energy, pivot = Offset.Zero) {
-                drawCircle(brushes.halo, radius = r * HaloScale, center = Offset.Zero)
+            if (lit > 0f) {
+                scale(1f + 0.12f * energy, pivot = Offset.Zero) {
+                    drawCircle(brushes.halo, radius = r * HaloScale, center = Offset.Zero, alpha = lit)
+                }
+                val wx = cos(warmAxis) * 0.55f * r
+                val wy = sin(warmAxis) * 0.55f * r
+                translate(wx, wy) { drawCircle(brushes.warmHalo, radius = r * WarmHaloScale, center = Offset.Zero, alpha = lit) }
             }
-            val wx = cos(warmAxis) * 0.55f * r
-            val wy = sin(warmAxis) * 0.55f * r
-            translate(wx, wy) { drawCircle(brushes.warmHalo, radius = r * WarmHaloScale, center = Offset.Zero) }
-            drawCircle(brushes.body, radius = r, center = Offset.Zero)
-            // Each light is the sphere filled with a gradient centered on the light's
-            // position: translating moves the gradient, the counter-offset keeps the circle.
-            for (i in Blobs.indices) {
-                val blob = Blobs[i]
-                val angle = warmAxis + blob.offset + blob.sway * sin(TwoPi * orbit / blob.swayPeriod)
-                val distance = blob.distance * r * (1f + blob.drift * sin(TwoPi * orbit / blob.driftPeriod + blob.offset))
-                val dx = cos(angle) * distance
-                val dy = sin(angle) * distance
-                translate(dx, dy) { drawCircle(brushes.blobs[i], radius = r, center = Offset(-dx, -dy)) }
+            if (dim > 0f) {
+                // Unlit: the sphere drawn into a layer that drains most of its color and fades it.
+                val paint = Paint().apply {
+                    colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1f - DimDesaturation * dim) })
+                    alpha = 1f - DimFade * dim
+                }
+                drawIntoCanvas { canvas ->
+                    canvas.saveLayer(Rect(-r, -r, r, r), paint)
+                    drawSphere(brushes, orbit, warmAxis)
+                    canvas.restore()
+                }
+            } else {
+                drawSphere(brushes, orbit, warmAxis)
             }
-            val hx = HighlightX * r
-            val hy = HighlightY * r
-            translate(hx, hy) { drawCircle(brushes.highlight, radius = r, center = Offset(-hx, -hy)) }
-            drawCircle(brushes.rim, radius = r, center = Offset.Zero)
         }
     }
+}
+
+/** The sphere itself, centered on the origin: body, orbiting lights, highlight and rim. */
+private fun DrawScope.drawSphere(brushes: OrbBrushes, orbit: Float, warmAxis: Float) {
+    val r = brushes.radius
+    drawCircle(brushes.body, radius = r, center = Offset.Zero)
+    // Each light is the sphere filled with a gradient centered on the light's
+    // position: translating moves the gradient, the counter-offset keeps the circle.
+    for (i in Blobs.indices) {
+        val blob = Blobs[i]
+        val angle = warmAxis + blob.offset + blob.sway * sin(TwoPi * orbit / blob.swayPeriod)
+        val distance = blob.distance * r * (1f + blob.drift * sin(TwoPi * orbit / blob.driftPeriod + blob.offset))
+        val dx = cos(angle) * distance
+        val dy = sin(angle) * distance
+        translate(dx, dy) { drawCircle(brushes.blobs[i], radius = r, center = Offset(-dx, -dy)) }
+    }
+    val hx = HighlightX * r
+    val hy = HighlightY * r
+    translate(hx, hy) { drawCircle(brushes.highlight, radius = r, center = Offset(-hx, -hy)) }
+    drawCircle(brushes.rim, radius = r, center = Offset.Zero)
 }
 
 private const val TwoPi = (2 * PI).toFloat()
@@ -262,6 +309,13 @@ private const val OrbitWrapSeconds = 480f
 private const val BreathSeconds = 3.2f
 private const val BreathWrapSeconds = BreathSeconds * 100
 private const val BreathAmplitude = 0.06f
+
+// Below this the orb is at rest (not thinking, nor winding down from it): frames can slow.
+private const val RestingEnergy = 0.01f
+
+// Dimmed: saturation falls to a quarter, the sphere to 70% opacity.
+private const val DimDesaturation = 0.75f
+private const val DimFade = 0.3f
 private const val HaloScale = 1.5f
 private const val WarmHaloScale = 1.05f
 

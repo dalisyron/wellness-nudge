@@ -50,7 +50,8 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
  * button is the light source; ink keeps 4.7:1 or more across the whole gradient) over a
  * glow in the gradient's own colors. [loading] swaps the icon for a spinner and ignores
  * taps. Disabled and loading together ("Setting up…") it reads as work in progress: a
- * quiet pill with a faint Daybreak rim. Disabled alone it turns fully quiet.
+ * quiet pill with a faint Daybreak rim. Disabled alone it turns fully quiet. A
+ * [trailingIcon] follows the label, e.g. the arrow of a "continue" action.
  */
 @Composable
 fun GradientButton(
@@ -60,6 +61,7 @@ fun GradientButton(
     icon: ImageVector? = Icons.Rounded.AutoAwesome,
     enabled: Boolean = true,
     loading: Boolean = false,
+    trailingIcon: ImageVector? = null,
 ) {
     val colors = WellnessTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
@@ -118,6 +120,7 @@ fun GradientButton(
             color = content,
             loading = loading,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+            trailingIcon = trailingIcon,
         )
     }
 }
@@ -247,6 +250,7 @@ private fun ButtonContent(
     color: Color,
     loading: Boolean,
     style: TextStyle,
+    trailingIcon: ImageVector? = null,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (loading) {
@@ -257,11 +261,16 @@ private fun ButtonContent(
         if (loading || icon != null) Spacer(Modifier.width(10.dp))
         Text(
             text = text,
+            modifier = Modifier.weight(1f, fill = false),
             style = style,
             color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        if (trailingIcon != null && !loading) {
+            Spacer(Modifier.width(8.dp))
+            Icon(trailingIcon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

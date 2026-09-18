@@ -74,6 +74,7 @@ import com.mimik.wellnessnudge.ui.components.SectionHeader
 import com.mimik.wellnessnudge.ui.components.SkeletonBlock
 import com.mimik.wellnessnudge.ui.components.SuggestionChip
 import com.mimik.wellnessnudge.ui.components.WellnessCard
+import com.mimik.wellnessnudge.ui.components.canvasBackdrop
 import com.mimik.wellnessnudge.ui.format.CategoryStyle
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
 import com.mimik.wellnessnudge.ui.format.dayLabel

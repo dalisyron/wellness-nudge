@@ -14,7 +14,6 @@ import com.mimik.wellnessnudge.api.TipsResponse
 import com.mimik.wellnessnudge.data.Feedback
 import com.mimik.wellnessnudge.data.toMetrics
 import com.mimik.wellnessnudge.ui.components.FloatingNavBar
-import com.mimik.wellnessnudge.ui.components.FloatingNavBarDefaults
 import com.mimik.wellnessnudge.ui.foryou.ForYouUiState
 import com.mimik.wellnessnudge.ui.foryou.forYouContent
 import com.mimik.wellnessnudge.ui.journal.JournalFilter
@@ -164,7 +163,7 @@ internal object ListsPreviewData {
 @Composable
 internal fun TabFrame(selected: TopLevelTab, content: @Composable (contentPadding: PaddingValues) -> Unit) {
     Box(Modifier.fillMaxSize()) {
-        content(PaddingValues(bottom = FloatingNavBarDefaults.occupiedHeight()))
+        content(tabBarPadding())
         FloatingNavBar(
             items = TopLevelTab.entries.map { it.item },
             selectedIndex = selected.ordinal,

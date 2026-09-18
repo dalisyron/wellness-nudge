@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
@@ -74,7 +75,12 @@ fun SectionHeader(
     }
 }
 
-/** Title block for the tab screens: eyebrow, serif title (a heading) and a secondary subtitle. */
+/**
+ * Title block for the tab screens: eyebrow, serif title (a heading) and a secondary subtitle.
+ * The eyebrow is centered in the same 36 dp slot that holds the date and the On-device pill
+ * on Today, and the title follows 4 dp below, so eyebrows and titles sit at the same height
+ * on every tab and don't jump as tabs crossfade.
+ */
 @Composable
 fun ScreenTitle(
     title: String,
@@ -85,8 +91,8 @@ fun ScreenTitle(
     val colors = WellnessTheme.colors
     Column(modifier) {
         if (eyebrow != null) {
-            Eyebrow(eyebrow)
-            Spacer(Modifier.height(10.dp))
+            Box(Modifier.height(EyebrowSlot), contentAlignment = Alignment.CenterStart) { Eyebrow(eyebrow) }
+            Spacer(Modifier.height(4.dp))
         }
         Text(
             text = title,
@@ -100,3 +106,6 @@ fun ScreenTitle(
         }
     }
 }
+
+/** Today's header row: as tall as the On-device pill. */
+private val EyebrowSlot = 36.dp

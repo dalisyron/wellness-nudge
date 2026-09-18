@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
@@ -45,7 +47,9 @@ fun EmptyState(
         Spacer(Modifier.height(8.dp))
         Text(
             text = body,
-            style = MaterialTheme.typography.bodyMedium,
+            // A measure that reads as a paragraph, with balanced lines.
+            modifier = Modifier.widthIn(max = BodyMaxWidth),
+            style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
@@ -55,3 +59,5 @@ fun EmptyState(
         }
     }
 }
+
+private val BodyMaxWidth = 320.dp
