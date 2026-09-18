@@ -4,7 +4,10 @@ import com.mimik.wellnessnudge.api.NudgeApi
 import com.mimik.wellnessnudge.testing.FakeNudgeApi
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -12,6 +15,9 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class NudgeRepositoryTest {
 
@@ -89,7 +95,7 @@ class NudgeRepositoryTest {
     }
 
     @Test
-    fun deleteRemovesTheNudgeEverywhere() = runBlocking {
+    fun deleteRemovesTheNudgeButLeavesTheResultOnScreen() = runBlocking {
         val repository = repository(FakeNudgeApi())
         repository.history()
         repository.generate(PreviewData.request)
@@ -97,8 +103,40 @@ class NudgeRepositoryTest {
 
         repository.delete(id)
 
-        assertEquals(GenerationState.Idle, repository.generation.value)
         assertTrue(repository.historyFlow.value!!.none { it.id == id })
+        // The Nudge screen keeps showing the result while it leaves.
+        assertEquals(id, (repository.generation.value as GenerationState.Success).item.id)
+    }
+
+    @Test
+    fun aRepeatedRequestWhileRunningIsIgnored() {
+        val release = CountDownLatch(1)
+        val calls = AtomicInteger()
+        val executor = Executors.newSingleThreadExecutor()
+        val repository = NudgeRepository(
+            api = FakeNudgeApi(onCreate = {
+                calls.incrementAndGet()
+                release.await()
+            }),
+            elapsedRealtime = { now },
+            wallClock = { PreviewData.now },
+            dispatcher = executor.asCoroutineDispatcher(),
+        )
+        try {
+            repository.generate(PreviewData.request)
+            val running = repository.generation.value
+
+            repository.generate(PreviewData.request.copy())
+
+            assertTrue(repository.generation.value === running)
+            release.countDown()
+            runBlocking { withTimeout(5_000) { repository.generation.first { it is GenerationState.Success } } }
+            assertEquals(1, calls.get())
+        } finally {
+            release.countDown()
+            repository.close()
+            executor.shutdownNow()
+        }
     }
 
     @Test

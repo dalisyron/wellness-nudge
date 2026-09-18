@@ -130,4 +130,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // JUnit for the unit and snapshot tests, declared rather than inherited from Paparazzi.
+    testImplementation("junit:junit:4.13.2")
 }

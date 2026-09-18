@@ -11,7 +11,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -20,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.IOException
@@ -61,7 +62,10 @@ class NudgeRepository(
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
-    private var generationJob: Job? = null
+
+    // Feedback writes go out one at a time, so quick Helpful / Not really taps reach the mim
+    // in order and the cache ends where the server does.
+    private val feedbackLock = Mutex()
 
     private val _generation = MutableStateFlow<GenerationState>(GenerationState.Idle)
     val generation: StateFlow<GenerationState> = _generation.asStateFlow()
@@ -77,14 +81,17 @@ class NudgeRepository(
     val tipsFlow: StateFlow<TipsResponse?> = _tips.asStateFlow()
 
     /**
-     * Generates a nudge for [request], replacing any generation in flight. Leaving the screen
-     * doesn't cancel it: the mim still stores the nudge and it lands in [historyFlow].
+     * Generates a nudge for [request], replacing any generation in flight on screen. A repeat
+     * of the request already running is ignored (a double tap). Nothing is cancelled: leaving
+     * the screen or replacing the request lets the call finish, as the mim stores the nudge
+     * anyway, and it lands in [historyFlow].
      */
     fun generate(request: NudgeRequest) {
-        generationJob?.cancel()
+        val current = _generation.value
+        if (current is GenerationState.Running && current.request == request) return
         val running = GenerationState.Running(request, startedAtMs = elapsedRealtime())
         _generation.value = running
-        generationJob = scope.launch {
+        scope.launch {
             val outcome = try {
                 val response = api.createNudge(request).data
                     ?: throw IOException("Empty response from the on-device service")
@@ -98,12 +105,16 @@ class NudgeRepository(
             } catch (t: Throwable) {
                 GenerationState.Failed(t.toFriendlyMessage(), request)
             }
-            // Only settle the generation this job started; a reset or a newer request wins.
-            _generation.compareAndSet(running, outcome)
+            // Only settle the generation this call started (by identity: an equal request at the
+            // same instant is still another call); a reset or a newer request wins.
+            _generation.update { if (it === running) outcome else it }
         }
     }
 
-    /** Forgets the current generation. A request still in flight completes into the history. */
+    /**
+     * Forgets the current generation. A request still in flight completes into the history.
+     * On `nudge/new` the shell treats Idle as "nothing to show" and leaves the screen.
+     */
     fun resetGeneration() {
         _generation.value = GenerationState.Idle
     }
@@ -126,27 +137,30 @@ class NudgeRepository(
         val previous = cached(id)
         updateCached(id) { it.copy(helpful = feedback.wireValue) }
         return scope.async {
-            try {
-                val saved = api.updateFeedback(id, FeedbackRequest(feedback.wireValue)).data?.withKnownLatency()
-                if (saved != null) updateCached(id) { saved }
-                saved ?: cached(id)
-            } catch (t: Throwable) {
-                if (previous != null) updateCached(id) { previous }
-                throw t
+            feedbackLock.withLock {
+                try {
+                    val saved = api.updateFeedback(id, FeedbackRequest(feedback.wireValue)).data?.withKnownLatency()
+                    if (saved != null) updateCached(id) { saved }
+                    saved ?: cached(id)
+                } catch (t: Throwable) {
+                    if (previous != null) updateCached(id) { previous }
+                    throw t
+                }
             }
         }.await()
     }
 
-    /** Permanently deletes nudge [id] from the phone. A nudge that is already gone counts as deleted. */
+    /**
+     * Permanently deletes nudge [id] from the phone. A nudge that is already gone counts as
+     * deleted. A fresh result on `nudge/new` stays in [generation], so the screen keeps showing
+     * it while it leaves; the next [generate] replaces it.
+     */
     suspend fun delete(id: String) {
         scope.async {
             val response = api.deleteNudge(id)
             if (!response.isSuccessful && response.code() != 404) throw HttpException(response)
             latencies.remove(id)
             _history.update { cached -> cached?.filterNot { it.id == id } }
-            _generation.update { state ->
-                if (state is GenerationState.Success && state.item.id == id) GenerationState.Idle else state
-            }
         }.await()
     }
 
