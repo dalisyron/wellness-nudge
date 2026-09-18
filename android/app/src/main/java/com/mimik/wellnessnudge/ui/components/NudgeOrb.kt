@@ -54,11 +54,12 @@ enum class OrbMode { Idle, Thinking, Still, Dimmed }
  * the glow ends in a hard edge; e.g. keep the generating orb outside the scrolling content.
  *
  * One draw pass with brushes built once per size; frames only move them, so animating
- * allocates nothing, and the orb has its own layer, so frames redraw nothing else. The slow
- * idle orbit runs at about 30 frames a second, which lets the display lower its refresh
- * rate; only thinking gets every frame. The orbit rests while the orb is scrolled out of
- * view. Shows a still pose for [OrbMode.Still] and [OrbMode.Dimmed], in previews and
- * snapshot tests, and when the user turned animations off.
+ * allocates nothing, and the orb has its own layer, so frames redraw nothing else. The
+ * orbit runs at about 30 frames a second, thinking included, which lets the display lower
+ * its refresh rate: the model runs on the same CPU, and on a Pixel 9 Pro XL drawing the
+ * thinking orb at 120 Hz made nudges take nearly twice as long. The orbit rests while the orb
+ * is scrolled out of view. Shows a still pose for [OrbMode.Still] and [OrbMode.Dimmed], in
+ * previews and snapshot tests, and when the user turned animations off.
  */
 @Composable
 fun NudgeOrb(
@@ -83,7 +84,7 @@ fun NudgeOrb(
         LaunchedEffect(clock) {
             var last = withFrameNanos { it }
             while (true) {
-                if (energy.value < RestingEnergy) delay(SlowFrameMillis)
+                delay(SlowFrameMillis)
                 withFrameNanos { now ->
                     clock.advance(seconds = ((now - last) / 1e9f).coerceIn(0f, 0.1f), energy = energy.value)
                     last = now
@@ -309,9 +310,6 @@ private const val OrbitWrapSeconds = 480f
 private const val BreathSeconds = 3.2f
 private const val BreathWrapSeconds = BreathSeconds * 100
 private const val BreathAmplitude = 0.06f
-
-// Below this the orb is at rest (not thinking, nor winding down from it): frames can slow.
-private const val RestingEnergy = 0.01f
 
 // Dimmed: saturation falls to a quarter, the sphere to 70% opacity.
 private const val DimDesaturation = 0.75f
