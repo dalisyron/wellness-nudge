@@ -2,10 +2,10 @@ package com.mimik.wellnessnudge.ui.format
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.SentimentSatisfied
@@ -68,7 +68,8 @@ data class CategoryStyle(
                 "reduce-stress" -> style("Stress", Icons.Rounded.Spa, colors.categoryStress)
                 "improve-mood" -> style("Mood", Icons.Rounded.SentimentSatisfied, colors.categoryMood)
                 "improve-fitness" -> style("Fitness", Icons.AutoMirrored.Rounded.DirectionsRun, colors.categoryFitness)
-                "weight-loss" -> style("Weight", Icons.Rounded.MonitorWeight, colors.categoryWeight)
+                // The filled scale reads as a solid block at badge size; the outline reads as a scale.
+                "weight-loss" -> style("Weight", Icons.Outlined.MonitorWeight, colors.categoryWeight)
                 "improve-appetite" -> style("Appetite", Icons.Rounded.Restaurant, colors.categoryAppetite)
                 else -> style("General", Icons.Rounded.AutoAwesome, colors.categoryGeneral)
             }

@@ -1,6 +1,7 @@
 package com.mimik.wellnessnudge.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,25 +15,32 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.format.CategoryStyle
@@ -42,8 +50,11 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
 
 /**
- * 36 dp pill for one choice in a group: goal suggestions on Today, filters in the Journal.
- * Selected, it takes an accent tint, border and label.
+ * Pill for one choice in a group: goal suggestions on Today, filters in the Journal. The
+ * visible pill is 36 dp tall inside a 48 dp touch target, like Material chips, so rows
+ * of chips need no extra vertical spacing. Selected, it takes an accent tint, border and a
+ * brighter label; [checkWhenSelected] also leads the label with a check mark (Journal
+ * filters), so the choice doesn't rest on color alone.
  */
 @Composable
 fun SuggestionChip(
@@ -51,23 +62,36 @@ fun SuggestionChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    checkWhenSelected: Boolean = false,
 ) {
     val colors = WellnessTheme.colors
-    val spec = tween<Color>(WellnessMotion.SmallMillis)
-    val container by animateColorAsState(if (selected) colors.tint(colors.accent) else colors.surfaceRaised, spec, "chipBg")
-    val border by animateColorAsState(if (selected) colors.accent else colors.hairline, spec, "chipBorder")
-    val label by animateColorAsState(if (selected) colors.accent else colors.textPrimary, spec, "chipLabel")
-    Box(
+    val spec = tween<Color>(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing)
+    val container by animateColorAsState(if (selected) colors.tint(colors.accent) else colors.chipFill, spec, "chipBg")
+    val border by animateColorAsState(if (selected) colors.accent else colors.controlBorder, spec, "chipBorder")
+    val label by animateColorAsState(if (selected) colors.accentContent else colors.textSecondary, spec, "chipLabel")
+    Row(
         modifier = modifier
-            .height(36.dp)
+            .minimumInteractiveComponentSize()
+            .heightIn(min = 36.dp)
             .clip(WellnessShapes.Pill)
             .background(container)
             .border(1.dp, border, WellnessShapes.Pill)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
+            .animateContentSize(tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing))
+            .padding(start = if (selected && checkWhenSelected) 10.dp else 14.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = text, style = MaterialTheme.typography.labelMedium, color = label, maxLines = 1)
+        if (selected && checkWhenSelected) {
+            Icon(Icons.Rounded.Check, contentDescription = null, tint = label, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -101,10 +125,10 @@ fun SignalChip(
     val colors = WellnessTheme.colors
     Row(
         modifier = modifier
-            .height(32.dp)
+            .heightIn(min = 32.dp)
             .clip(WellnessShapes.Pill)
-            .background(colors.surfaceRaised)
-            .border(1.dp, colors.hairline, WellnessShapes.Pill)
+            .background(colors.chipFill)
+            .border(1.dp, colors.controlBorder, WellnessShapes.Pill)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -114,29 +138,48 @@ fun SignalChip(
                 .background(color, CircleShape),
         )
         Spacer(Modifier.width(8.dp))
-        Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textPrimary, maxLines = 1)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
-/** Icon in a circle of its own tint, e.g. a category or metric marker. The glyph is ~55% of [size]. */
+/**
+ * Icon in a circle of its own tint, e.g. a category or metric marker. The glyph is ~55% of
+ * [size]; on paper it is deepened toward ink so light hues (honey, mint) keep 3:1.
+ */
 @Composable
 fun IconBadge(
     icon: ImageVector,
     tint: Color,
-    size: Dp = 32.dp,
     modifier: Modifier = Modifier,
+    size: Dp = 32.dp,
 ) {
+    val colors = WellnessTheme.colors
     Box(
         modifier = modifier
             .size(size)
-            .background(WellnessTheme.colors.tint(tint), CircleShape),
+            .background(colors.tint(tint), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.55f))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (colors.isDark) tint else lerp(tint, colors.textPrimary, 0.3f),
+            modifier = Modifier.size(size * 0.55f),
+        )
     }
 }
 
-/** Status light. [pulsing] adds a soft ring that radiates outwards, e.g. for a live runtime. */
+/**
+ * Status light. [pulsing] adds a soft glow that breathes outwards, e.g. for a live runtime;
+ * still frames (previews, animations off) show the glow at rest. The glow spills past
+ * [size] without taking layout space.
+ */
 @Composable
 fun StatusDot(
     color: Color,
@@ -155,14 +198,27 @@ fun StatusDot(
     } else {
         null
     }
-    Canvas(modifier.size(size)) {
+    // Its own layer, so each pulse frame redraws only the dot.
+    Canvas(
+        modifier
+            .size(size)
+            .graphicsLayer(),
+    ) {
         val radius = this.size.minDimension / 2f
         if (pulsing) {
-            // Still pose: the ring halfway out.
-            val progress = pulse?.value ?: 0.5f
+            val progress = pulse?.value
+            // Moving: a glow that grows and fades. At rest: a soft halo twice the dot's size.
+            val glowRadius = if (progress != null) radius * (1.2f + 1.3f * progress) else radius * 2f
+            val alpha = if (progress != null) 0.5f * (1f - progress) else 0.3f
             drawCircle(
-                color = color.copy(alpha = 0.45f * (1f - progress)),
-                radius = radius * (1f + 1.25f * progress),
+                brush = Brush.radialGradient(
+                    0f to color.copy(alpha = alpha),
+                    0.45f to color.copy(alpha = alpha),
+                    1f to color.copy(alpha = 0f),
+                    center = center,
+                    radius = glowRadius,
+                ),
+                radius = glowRadius,
             )
         }
         drawCircle(color = color, radius = radius)
@@ -172,7 +228,11 @@ fun StatusDot(
 /** Health of the on-device stack, as shown by [OnDevicePill]. */
 enum class RuntimeStatus { Ready, Starting, Error }
 
-/** Header pill saying the AI runs on this phone; opens the runtime details when tapped. */
+/**
+ * Header pill saying the AI runs on this phone; opens the runtime details when tapped. The
+ * label and marker change with [status] ("On-device" with a breathing dot, "Starting…" with
+ * a spinner, "Unavailable" with a red dot), so the state never rests on color alone.
+ */
 @Composable
 fun OnDevicePill(
     status: RuntimeStatus,
@@ -180,17 +240,16 @@ fun OnDevicePill(
     modifier: Modifier = Modifier,
 ) {
     val colors = WellnessTheme.colors
-    val (dot, state) = when (status) {
-        RuntimeStatus.Ready -> colors.success to "ready"
-        RuntimeStatus.Starting -> colors.warning to "starting"
-        RuntimeStatus.Error -> colors.danger to "unavailable"
+    val (label, state) = when (status) {
+        RuntimeStatus.Ready -> "On-device" to "ready"
+        RuntimeStatus.Starting -> "Starting…" to "starting"
+        RuntimeStatus.Error -> "Unavailable" to "unavailable"
     }
     Row(
         modifier = modifier
-            .height(36.dp)
-            .clip(WellnessShapes.Pill)
-            .background(colors.surfaceRaised)
-            .border(1.dp, colors.hairline, WellnessShapes.Pill)
+            .then(if (onClick != null) Modifier.minimumInteractiveComponentSize() else Modifier)
+            .heightIn(min = 36.dp)
+            .control(colors, WellnessShapes.Pill)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(onClickLabel = "Show what runs on this phone", role = Role.Button, onClick = onClick)
@@ -202,8 +261,18 @@ fun OnDevicePill(
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatusDot(color = dot, pulsing = status == RuntimeStatus.Ready)
+        when (status) {
+            RuntimeStatus.Ready -> StatusDot(color = colors.success, pulsing = true)
+            RuntimeStatus.Starting -> Spinner(color = colors.warning, size = 12.dp, strokeWidth = 1.5.dp)
+            RuntimeStatus.Error -> StatusDot(color = colors.danger)
+        }
         Spacer(Modifier.width(8.dp))
-        Text(text = "On-device", style = MaterialTheme.typography.labelMedium, color = colors.textPrimary)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

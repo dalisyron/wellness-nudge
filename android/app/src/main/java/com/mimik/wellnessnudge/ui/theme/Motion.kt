@@ -1,12 +1,12 @@
 package com.mimik.wellnessnudge.ui.theme
 
-import android.provider.Settings
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.platform.LocalInspectionMode
+import kotlin.coroutines.CoroutineContext
 
 /** Calm, eased motion. Springs are reserved for tactile feedback. */
 object WellnessMotion {
@@ -29,14 +29,18 @@ object WellnessMotion {
 }
 
 /**
- * False in previews and snapshot tests, and when the user turned animations off
- * (animator duration scale 0). Decorative loops render a static pose instead.
+ * False in previews and snapshot tests, and while the user has animations turned off
+ * (animator duration scale 0). Decorative loops render a static pose instead. It follows
+ * the setting live: turning animations off stops loops already on screen.
  */
 @Composable
 fun rememberAnimationsEnabled(): Boolean {
     if (LocalInspectionMode.current) return false
-    val resolver = LocalContext.current.contentResolver
-    return remember(resolver) {
-        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
-    }
+    return rememberCoroutineScope().coroutineContext.animationsEnabled()
 }
+
+/**
+ * Compose mirrors the system animator duration scale into the [MotionDurationScale] of every
+ * window's coroutine context. The value is snapshot state, so reading it here is observed.
+ */
+internal fun CoroutineContext.animationsEnabled(): Boolean = (this[MotionDurationScale]?.scaleFactor ?: 1f) != 0f

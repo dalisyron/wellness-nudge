@@ -1,5 +1,6 @@
 package com.mimik.wellnessnudge.ui.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -31,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -44,9 +44,12 @@ import com.mimik.wellnessnudge.ui.theme.WellnessMotion
 import com.mimik.wellnessnudge.ui.theme.WellnessShapes
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
-/** One destination in the [FloatingNavBar]. */
+/**
+ * One destination in the [FloatingNavBar]: [icon] while unselected (an outlined glyph, so
+ * the idle tabs stay light) and [selectedIcon] while selected (the filled glyph).
+ */
 @Immutable
-data class NavBarItem(val label: String, val icon: ImageVector)
+data class NavBarItem(val label: String, val icon: ImageVector, val selectedIcon: ImageVector = icon)
 
 object FloatingNavBarDefaults {
     val Height = 64.dp
@@ -82,13 +85,7 @@ fun FloatingNavBar(
             .navigationBarsPadding()
             .padding(start = 20.dp, end = 20.dp, bottom = FloatingNavBarDefaults.BottomMargin)
             .height(FloatingNavBarDefaults.Height)
-            .then(
-                if (colors.isDark) {
-                    Modifier
-                } else {
-                    Modifier.shadow(16.dp, WellnessShapes.Pill, ambientColor = colors.shadowAmbient, spotColor = colors.shadowSpot)
-                },
-            )
+            .paperShadow(colors, WellnessShapes.Pill, elevation = 14.dp)
             .clip(WellnessShapes.Pill)
             .background(if (colors.isDark) colors.surface.copy(alpha = 0.92f) else colors.surface)
             .border(1.dp, if (colors.isDark) colors.hairlineStrong else colors.hairline, WellnessShapes.Pill)
@@ -110,8 +107,8 @@ fun FloatingNavBar(
         items.forEachIndexed { index, item ->
             val selected = index == selectedIndex
             val tint by animateColorAsState(
-                targetValue = if (selected) colors.accent else colors.textSecondary,
-                animationSpec = tween(WellnessMotion.SmallMillis),
+                targetValue = if (selected) colors.accentContent else colors.textSecondary,
+                animationSpec = tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing),
                 label = "navTint",
             )
             Row(
@@ -123,7 +120,13 @@ fun FloatingNavBar(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+                Crossfade(
+                    targetState = if (selected) item.selectedIcon else item.icon,
+                    animationSpec = tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing),
+                    label = "navIcon",
+                ) { icon ->
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+                }
                 Spacer(Modifier.width(8.dp))
                 Text(text = item.label, style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
             }

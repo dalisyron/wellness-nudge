@@ -21,9 +21,10 @@ import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 /**
  * Journal tab. PLACEHOLDER until the Journal screen (spec 4.4) replaces it.
  *
- * @param onOpenNudge opens a saved nudge (`nudge/{id}`).
+ * @param onOpenNudge opens a saved nudge (`nudge/saved/{id}`).
  * @param onCreateNudge switches to the Today tab (empty-state action).
- * @param contentPadding space taken by the floating tab bar; keep content above it.
+ * @param contentPadding bottom space taken by the floating tab bar and the navigation bar
+ *   under it (or the keyboard, while it is taller); pass it to the list as content padding.
  */
 @Composable
 fun JournalRoute(

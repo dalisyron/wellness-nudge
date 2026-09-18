@@ -1,5 +1,9 @@
 package com.mimik.wellnessnudge.ui.format
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -18,9 +22,28 @@ private const val GiB = MiB * 1024
 
 /** 6.5 → "6h 30m". */
 fun formatSleep(hours: Float): String {
-    val minutes = (hours * 60).roundToInt().coerceAtLeast(0)
+    val minutes = sleepMinutes(hours)
     return "${minutes / 60}h ${minutes % 60}m"
 }
+
+/**
+ * 6.5 → "6h 30m" for display, with [unitStyle] on "h" and "m" (e.g. smaller and quieter
+ * than the digits) and a thin space between the groups, as the unit letters are smaller.
+ */
+fun formatSleepAnnotated(hours: Float, unitStyle: SpanStyle): AnnotatedString {
+    val minutes = sleepMinutes(hours)
+    return buildAnnotatedString {
+        append("${minutes / 60}")
+        withStyle(unitStyle) { append("h") }
+        append(ThinSpace)
+        append("${minutes % 60}")
+        withStyle(unitStyle) { append("m") }
+    }
+}
+
+private fun sleepMinutes(hours: Float): Int = (hours * 60).roundToInt().coerceAtLeast(0)
+
+private const val ThinSpace = " "
 
 /** 6.5 → "6.5 h", 7.0 → "7 h". */
 fun formatSleepShort(hours: Float): String = "${formatDecimal(hours)} h"

@@ -25,6 +25,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
@@ -32,7 +34,8 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
  * Material slider dressed for the metric editors: an 8 dp rounded track filled with the
  * metric [color] and a white 24 dp thumb ringed in it that grows slightly while held. The
  * track spans the slider's bounds, lining up with the labels above it; at either end the
- * thumb overhangs by half its width.
+ * thumb overhangs by half its width. [valueDescription] is what TalkBack reads for the
+ * value, e.g. "6h 30m" instead of "54 percent".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,26 +44,29 @@ fun WellnessSlider(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     color: Color,
-    steps: Int = 0,
     modifier: Modifier = Modifier,
+    steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
+    valueDescription: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Slider(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.layout { measurable, constraints ->
-            // Material insets the track by half a thumb on each side; widen the slider by
-            // the same amount so the track itself fills the given width.
-            val overhang = (ThumbSize / 2).roundToPx()
-            val placeable = measurable.measure(
-                constraints.copy(
-                    minWidth = constraints.minWidth + overhang * 2,
-                    maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + overhang * 2 else constraints.maxWidth,
-                ),
-            )
-            layout(placeable.width - overhang * 2, placeable.height) { placeable.place(-overhang, 0) }
-        },
+        modifier = modifier
+            .then(if (valueDescription != null) Modifier.semantics { stateDescription = valueDescription } else Modifier)
+            .layout { measurable, constraints ->
+                // Material insets the track by half a thumb on each side; widen the slider by
+                // the same amount so the track itself fills the given width.
+                val overhang = (ThumbSize / 2).roundToPx()
+                val placeable = measurable.measure(
+                    constraints.copy(
+                        minWidth = constraints.minWidth + overhang * 2,
+                        maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + overhang * 2 else constraints.maxWidth,
+                    ),
+                )
+                layout(placeable.width - overhang * 2, placeable.height) { placeable.place(-overhang, 0) }
+            },
         valueRange = valueRange,
         steps = steps,
         onValueChangeFinished = onValueChangeFinished,
@@ -90,7 +96,7 @@ private fun SliderThumb(color: Color, interactionSource: MutableInteractionSourc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SliderTrack(state: SliderState, color: Color) {
-    val inactive = WellnessTheme.colors.surfaceSunken
+    val inactive = WellnessTheme.colors.trackStrong
     Canvas(
         Modifier
             .fillMaxWidth()

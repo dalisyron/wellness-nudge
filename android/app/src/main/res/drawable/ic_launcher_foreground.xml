@@ -36,8 +36,8 @@
         <path android:pathData="M-38,155.5 A92,92 0 1,1 146,155.5 A92,92 0 1,1 -38,155.5 Z">
             <aapt:attr name="android:fillColor">
                 <gradient android:type="linear" android:startX="54" android:startY="63.5" android:endX="54" android:endY="89.5">
-                    <item android:offset="0" android:color="#FF15132B" />
-                    <item android:offset="1" android:color="#FF0B0B12" />
+                    <item android:offset="0" android:color="#FF1B1838" />
+                    <item android:offset="1" android:color="#FF0F0D1E" />
                 </gradient>
             </aapt:attr>
         </path>
@@ -78,13 +78,14 @@
                 </gradient>
             </aapt:attr>
         </path>
-        <!-- Horizon arc, brightest under the orb. -->
+        <!-- Horizon arc, brightest under the orb. Its radius is the planet's plus half the
+             stroke, so the whole line sits on the sky side of the limb instead of straddling it. -->
         <path
-            android:pathData="M20,70.01 A92,92 0 0,1 88,70.01"
+            android:pathData="M20,69.15 A92.8,92.8 0 0,1 88,69.15"
             android:strokeWidth="1.6"
             android:strokeLineCap="round">
             <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="20" android:startY="70.01" android:endX="88" android:endY="70.01">
+                <gradient android:type="linear" android:startX="20" android:startY="69.15" android:endX="88" android:endY="69.15">
                     <item android:offset="0" android:color="#00FFFFFF" />
                     <item android:offset="0.3" android:color="#8CFFFFFF" />
                     <item android:offset="0.5" android:color="#FFFFFFFF" />

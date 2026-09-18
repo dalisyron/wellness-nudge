@@ -23,15 +23,15 @@ object Daybreak {
 
     /** Borders and strokes: the first three stops, top-left to bottom-right. */
     val Diagonal: Brush = Brush.linearGradient(listOf(Iris, Orchid, Coral))
-
-    /** All four stops, top-left to bottom-right. */
-    val Full: Brush = Brush.linearGradient(listOf(Iris, Orchid, Coral, Honey))
 }
 
 /**
  * The extended palette behind [WellnessTheme]: surfaces, text and status tokens plus the
  * metric and category colors that Material's [ColorScheme] has no slots for.
  * Read it through `WellnessTheme.colors`.
+ *
+ * Every `text*` token and the `*Text` status tokens keep at least 4.5:1 on bg, surface,
+ * surfaceRaised and the top glow. [textDisabled] is the exception, on purpose.
  */
 @Immutable
 class WellnessColors(
@@ -40,20 +40,45 @@ class WellnessColors(
     val bg: Color,
     val surface: Color,
     val surfaceRaised: Color,
+    /** Wells inside cards. Meter and slider tracks use [track] and [trackStrong]. */
     val surfaceSunken: Color,
     val hairline: Color,
     val hairlineStrong: Color,
+    // Controls
+    /** Pill and circle buttons, the On-device pill and text inputs: raised on ink, white paper in light. */
+    val controlFill: Color,
+    /** Border of controls and chips. */
+    val controlBorder: Color,
+    /** Unselected chips: raised on ink, a translucent ink wash in light, so they work on the canvas and on sheets. */
+    val chipFill: Color,
+    /** Unfilled part of meters. */
+    val track: Color,
+    /** Unfilled part of slider tracks, a step stronger so the end of the range stays visible. */
+    val trackStrong: Color,
     // Text
     val textPrimary: Color,
     val textSecondary: Color,
+    /** Captions, meta lines, eyebrows, timestamps and placeholders. Still 4.5:1. */
     val textTertiary: Color,
+    /**
+     * Below text contrast by design: disabled labels and icons, and quiet glyphs such as the
+     * edit pencil or an input's leading icon. Never for words someone needs to read.
+     */
+    val textDisabled: Color,
     // Interaction and status
     val accent: Color,
     val accentStrong: Color,
     val onAccent: Color,
+    /** Accent content sitting on an accent tint: a selected chip's label, the selected tab. */
+    val accentContent: Color,
+    /** Status hues for dots, fills, meters and icons. */
     val success: Color,
     val danger: Color,
     val warning: Color,
+    /** Status hues for text, e.g. a selected "Helpful", a "Delete" button or a failure message. */
+    val successText: Color,
+    val dangerText: Color,
+    val warningText: Color,
     // Metrics
     val sleep: Color,
     val deepSleep: Color,
@@ -75,15 +100,19 @@ class WellnessColors(
     // Atmosphere
     /** Alpha for tinted badge and icon-circle backgrounds. */
     val tintAlpha: Float,
-    /** Colored glow under hero and AI elements. */
-    val glow: Color,
+    /** Opacity of the colored light under hero and AI elements, such as the Generate button's glow. */
+    val glowAlpha: Float,
     /** Peak alpha of the orb's outer halo. */
     val haloAlpha: Float,
     /** Stops of the radial glow at the top of every screen, center outwards. */
-    val bgGlowIris: Color,
-    val bgGlowOrchid: Color,
-    val bgGlowCoral: Color,
-    /** Soft card shadow; transparent in the dark theme, which uses hairlines only. */
+    val bgGlowInner: Color,
+    val bgGlowMiddle: Color,
+    val bgGlowOuter: Color,
+    /**
+     * The light theme's paper shadow, drawn blurred under cards, the tab bar and pill controls:
+     * [shadowAmbient] is the tight contact shadow, [shadowSpot] the wide, soft one below.
+     * Transparent in the dark theme, which separates surfaces with hairlines only.
+     */
     val shadowAmbient: Color,
     val shadowSpot: Color,
     /** Highlight that sweeps across skeleton placeholders. */
@@ -109,19 +138,31 @@ val DarkWellnessColors = WellnessColors(
     surfaceSunken = Color(0xFF0F0F18),
     hairline = Color.White.copy(alpha = 0.07f),
     hairlineStrong = Color.White.copy(alpha = 0.12f),
+    controlFill = Color(0xFF1C1C29),
+    controlBorder = Color.White.copy(alpha = 0.07f),
+    chipFill = Color(0xFF1C1C29),
+    track = Color.White.copy(alpha = 0.10f),
+    trackStrong = Color.White.copy(alpha = 0.14f),
     textPrimary = Color(0xFFF5F4FA),
     textSecondary = Color(0xFFA5A3B3),
-    textTertiary = Color(0xFF6F6D80),
+    textTertiary = Color(0xFF8A889A),
+    textDisabled = Color(0xFF6F6D80),
     accent = Color(0xFFA99EFF),
     accentStrong = Color(0xFF7B6CFF),
     onAccent = Color(0xFF0B0B12),
+    accentContent = Color(0xFFC9C2FF),
     success = Color(0xFF3DD6B0),
     danger = Color(0xFFFF6B81),
     warning = Color(0xFFFFB547),
+    // The dark hues already read as text (5.4:1 and up).
+    successText = Color(0xFF3DD6B0),
+    dangerText = Color(0xFFFF6B81),
+    warningText = Color(0xFFFFB547),
     sleep = Color(0xFF7B6CFF),
     deepSleep = Color(0xFF5B8CFF),
     rem = Color(0xFFC86DD7),
-    lightSleep = Color(0xFF6F6D80).copy(alpha = 0.35f),
+    // A quiet lavender from the same family: light sleep is a stage, not an empty track.
+    lightSleep = Color(0xFF9C95E6).copy(alpha = 0.55f),
     restingHr = Color(0xFFFF6B81),
     hrv = Color(0xFF3DD6B0),
     steps = Color(0xFFFFB547),
@@ -135,14 +176,15 @@ val DarkWellnessColors = WellnessColors(
     categoryAppetite = Color(0xFFFFA36B),
     categoryGeneral = Color(0xFFA5A3B3),
     tintAlpha = 0.16f,
-    glow = Daybreak.Iris.copy(alpha = 0.40f),
+    glowAlpha = 0.40f,
     haloAlpha = 0.35f,
-    bgGlowIris = Daybreak.Iris.copy(alpha = 0.16f),
-    bgGlowOrchid = Daybreak.Orchid.copy(alpha = 0.10f),
-    bgGlowCoral = Daybreak.Coral.copy(alpha = 0.06f),
+    // Cool light only: warm coral over ink turns maroon at the screen edges.
+    bgGlowInner = Daybreak.Iris.copy(alpha = 0.16f),
+    bgGlowMiddle = Daybreak.Orchid.copy(alpha = 0.08f),
+    bgGlowOuter = Daybreak.Orchid.copy(alpha = 0.03f),
     shadowAmbient = Color.Transparent,
     shadowSpot = Color.Transparent,
-    shimmer = Color.White.copy(alpha = 0.06f),
+    shimmer = Color.White.copy(alpha = 0.05f),
 )
 
 val LightWellnessColors = WellnessColors(
@@ -153,19 +195,30 @@ val LightWellnessColors = WellnessColors(
     surfaceSunken = Color(0xFFECE9E4),
     hairline = Ink.copy(alpha = 0.08f),
     hairlineStrong = Ink.copy(alpha = 0.14f),
+    controlFill = Color(0xFFFFFFFF),
+    controlBorder = Ink.copy(alpha = 0.12f),
+    chipFill = Ink.copy(alpha = 0.06f),
+    track = Color(0xFFECE9E4),
+    trackStrong = Color(0xFFE6E3DD),
     textPrimary = Ink,
-    textSecondary = Color(0xFF5E5C6C),
-    textTertiary = Color(0xFF8E8C9B),
+    textSecondary = Color(0xFF524F5F),
+    textTertiary = Color(0xFF686676),
+    textDisabled = Color(0xFF8E8C9B),
     accent = Color(0xFF5B4BE0),
     accentStrong = Color(0xFF4B3BD0),
     onAccent = Color(0xFFFFFFFF),
+    accentContent = Color(0xFF4B3BD0),
     success = Color(0xFF0E9F7E),
     danger = Color(0xFFE0445E),
     warning = Color(0xFFD98300),
+    // Deepened so text keeps 4.5:1 on paper, white, raised and the status's own 12-16% tint.
+    successText = Color(0xFF0A6F58),
+    dangerText = Color(0xFFBA1F38),
+    warningText = Color(0xFF905600),
     sleep = Color(0xFF5B4BE0),
     deepSleep = Color(0xFF3D6FE6),
     rem = Color(0xFFA948BC),
-    lightSleep = Color(0xFF8E8C9B).copy(alpha = 0.35f),
+    lightSleep = Color(0xFF8C84E0).copy(alpha = 0.45f),
     restingHr = Color(0xFFE0445E),
     hrv = Color(0xFF0E9F7E),
     steps = Color(0xFFD98300),
@@ -179,14 +232,14 @@ val LightWellnessColors = WellnessColors(
     categoryAppetite = Color(0xFFD66A1F),
     categoryGeneral = Color(0xFF6E6C7C),
     tintAlpha = 0.12f,
-    glow = Daybreak.Iris.copy(alpha = 0.30f),
+    glowAlpha = 0.26f,
     haloAlpha = 0.20f,
-    bgGlowIris = Daybreak.Iris.copy(alpha = 0.10f),
-    bgGlowOrchid = Daybreak.Orchid.copy(alpha = 0.07f),
-    bgGlowCoral = Daybreak.Coral.copy(alpha = 0.05f),
+    bgGlowInner = Daybreak.Iris.copy(alpha = 0.10f),
+    bgGlowMiddle = Daybreak.Orchid.copy(alpha = 0.07f),
+    bgGlowOuter = Daybreak.Coral.copy(alpha = 0.05f),
     shadowAmbient = Ink.copy(alpha = 0.05f),
-    shadowSpot = Ink.copy(alpha = 0.09f),
-    shimmer = Color.White.copy(alpha = 0.6f),
+    shadowSpot = Ink.copy(alpha = 0.08f),
+    shimmer = Color.White.copy(alpha = 0.45f),
 )
 
 /**
@@ -203,12 +256,12 @@ internal fun WellnessColors.toColorScheme(): ColorScheme {
             primary = accent,
             onPrimary = onAccent,
             primaryContainer = accentContainer,
-            onPrimaryContainer = accent,
+            onPrimaryContainer = accentContent,
             inversePrimary = LightWellnessColors.accent,
             secondary = accent,
             onSecondary = onAccent,
             secondaryContainer = accentContainer,
-            onSecondaryContainer = accent,
+            onSecondaryContainer = accentContent,
             tertiary = tertiary,
             onTertiary = onAccent,
             tertiaryContainer = tertiaryContainer,
@@ -222,10 +275,10 @@ internal fun WellnessColors.toColorScheme(): ColorScheme {
             surfaceTint = Color.Transparent,
             inverseSurface = textPrimary,
             inverseOnSurface = bg,
-            error = danger,
+            error = dangerText,
             onError = onAccent,
             errorContainer = dangerContainer,
-            onErrorContainer = danger,
+            onErrorContainer = dangerText,
             outline = hairlineStrong,
             outlineVariant = hairline,
             scrim = Color.Black,
@@ -242,12 +295,12 @@ internal fun WellnessColors.toColorScheme(): ColorScheme {
             primary = accent,
             onPrimary = onAccent,
             primaryContainer = accentContainer,
-            onPrimaryContainer = accentStrong,
+            onPrimaryContainer = accentContent,
             inversePrimary = DarkWellnessColors.accent,
             secondary = accent,
             onSecondary = onAccent,
             secondaryContainer = accentContainer,
-            onSecondaryContainer = accentStrong,
+            onSecondaryContainer = accentContent,
             tertiary = tertiary,
             onTertiary = onAccent,
             tertiaryContainer = tertiaryContainer,
@@ -261,10 +314,11 @@ internal fun WellnessColors.toColorScheme(): ColorScheme {
             surfaceTint = Color.Transparent,
             inverseSurface = textPrimary,
             inverseOnSurface = bg,
-            error = danger,
+            // Stock error labels and supporting text are text: use the deepened red.
+            error = dangerText,
             onError = onAccent,
             errorContainer = dangerContainer,
-            onErrorContainer = danger,
+            onErrorContainer = dangerText,
             outline = hairlineStrong,
             outlineVariant = hairline,
             scrim = Ink,

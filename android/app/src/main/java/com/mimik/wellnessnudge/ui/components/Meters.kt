@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.progressSemantics
-import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,6 +31,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessMotion
@@ -38,19 +42,26 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
 import kotlin.math.roundToInt
 
-/** Rounded progress meter on a sunken track. Changes in [progress] (0 to 1) animate. */
+/**
+ * Rounded progress meter on a quiet track. Changes in [progress] (0 to 1) animate.
+ *
+ * Meters are decorative by default: a tile's meter only marks a value's place in a range,
+ * and the value itself is read out. Pass [progressDescription] (e.g. "84 of 368 MB") for
+ * meters that report real progress, such as model downloads, to expose them to TalkBack.
+ */
 @Composable
 fun LinearMeter(
     progress: Float,
     color: Color,
     modifier: Modifier = Modifier,
     height: Dp = 6.dp,
-) = LinearMeter(progress, SolidColor(color), modifier, height)
+    progressDescription: String? = null,
+) = LinearMeter(progress, SolidColor(color), modifier, height, progressDescription)
 
 /**
  * Rounded progress meter filled with [brush]. A gradient brush spans the whole track, so
  * the fill reveals more of it as progress grows (the Daybreak gradient warms up as a
- * download completes).
+ * download completes). See the [Color] overload for [progressDescription].
  */
 @Composable
 fun LinearMeter(
@@ -58,10 +69,12 @@ fun LinearMeter(
     brush: Brush,
     modifier: Modifier = Modifier,
     height: Dp = 6.dp,
+    progressDescription: String? = null,
 ) {
-    val track = WellnessTheme.colors.surfaceSunken
+    val track = WellnessTheme.colors.track
+    val target = progress.coerceIn(0f, 1f)
     val animated by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
+        targetValue = target,
         animationSpec = tween(WellnessMotion.ValueMillis, easing = WellnessMotion.Easing),
         label = "meter",
     )
@@ -69,7 +82,15 @@ fun LinearMeter(
         modifier
             .fillMaxWidth()
             .height(height)
-            .progressSemantics(animated),
+            .then(
+                if (progressDescription == null) {
+                    Modifier.clearAndSetSemantics {}
+                } else {
+                    Modifier
+                        .progressSemantics(target)
+                        .semantics { stateDescription = progressDescription }
+                },
+            ),
     ) {
         drawPill(track, 0f, size.width)
         // A sliver of progress still shows as a round dot.
@@ -84,7 +105,7 @@ fun IndeterminateMeter(
     modifier: Modifier = Modifier,
     height: Dp = 6.dp,
 ) {
-    val track = WellnessTheme.colors.surfaceSunken
+    val track = WellnessTheme.colors.track
     val sweep = if (rememberAnimationsEnabled()) {
         rememberInfiniteTransition(label = "indeterminate").animateFloat(
             initialValue = 0f,
@@ -99,6 +120,8 @@ fun IndeterminateMeter(
         modifier
             .fillMaxWidth()
             .height(height)
+            // Its own layer, so each sweep frame redraws only the meter.
+            .graphicsLayer()
             .progressSemantics(),
     ) {
         drawPill(track, 0f, size.width)

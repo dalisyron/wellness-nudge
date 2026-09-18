@@ -22,9 +22,15 @@ import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 /**
  * Today tab. PLACEHOLDER until the Today screen (spec 4.2) replaces it.
  *
- * @param onGenerate starts a generation and opens `nudge/new`.
+ * The On-device pill shows `RuntimeStatus.Starting` until [NudgeRepository.health] first
+ * answers, then `Ready` when the answer `isHealthy` and `Error` otherwise.
+ *
+ * @param onGenerate starts a generation and opens `nudge/new`. The shell drops repeated taps.
  * @param onOpenRuntime opens the runtime sheet (from the On-device pill).
- * @param contentPadding space taken by the floating tab bar; keep content above it.
+ * @param contentPadding bottom space taken by the floating tab bar and the navigation bar
+ *   under it or, while it is taller, by the keyboard (the bar hides while the keyboard is
+ *   up). Pad the scrolling content and the sticky Generate footer with it, and don't add
+ *   imePadding() on top: the footer then rides just above the keyboard.
  */
 @Composable
 fun TodayRoute(

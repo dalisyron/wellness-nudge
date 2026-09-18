@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Icon
@@ -21,18 +22,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.mimik.wellnessnudge.ui.format.formatSleepAnnotated
 import com.mimik.wellnessnudge.ui.theme.WellnessShapes
 import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
-import java.util.Locale
 
 /**
  * The standard surface: 28 dp corners with a hairline border, plus a soft shadow in the
@@ -54,13 +56,7 @@ fun WellnessCard(
     val colors = WellnessTheme.colors
     Column(
         modifier = modifier
-            .then(
-                if (colors.isDark) {
-                    Modifier
-                } else {
-                    Modifier.shadow(10.dp, shape, clip = false, ambientColor = colors.shadowAmbient, spotColor = colors.shadowSpot)
-                },
-            )
+            .paperShadow(colors, shape, elevation = 10.dp)
             .clip(shape)
             .background(colors.surface)
             .radialGlow(glow, glowAlignment)
@@ -79,7 +75,9 @@ fun WellnessCard(
 
 /**
  * An editable metric: tinted icon, label and edit glyph, then the value and unit on a
- * shared baseline, and an optional meter with a trailing caption such as "of 10k".
+ * shared baseline, and an optional meter with a trailing caption such as "of 10k". Tiles
+ * use the 24 dp tile corners; pass [shape] = `WellnessShapes.Card` for a tile that spans
+ * the full content width, so it matches the full-width cards around it.
  */
 @Composable
 fun MetricTile(
@@ -92,14 +90,15 @@ fun MetricTile(
     onClick: (() -> Unit)? = null,
     meterProgress: Float? = null,
     meterCaption: String? = null,
+    shape: Shape = WellnessShapes.Tile,
 ) {
     val colors = WellnessTheme.colors
     WellnessCard(
         modifier = modifier,
         onClick = onClick,
         contentPadding = WellnessSpacing.TilePadding,
-        shape = WellnessShapes.Tile,
-        onClickLabel = "Edit ${label.lowercase(Locale.US)}",
+        shape = shape,
+        onClickLabel = "Edit $label",
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(icon, color)
@@ -113,7 +112,7 @@ fun MetricTile(
                 overflow = TextOverflow.Ellipsis,
             )
             if (onClick != null) {
-                Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(14.dp))
+                Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(14.dp))
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -138,13 +137,43 @@ fun MetricTile(
         }
         if (meterProgress != null) {
             Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LinearMeter(meterProgress, color, Modifier.weight(1f))
+            // Exactly as tall as the meter, so every tile keeps the same rhythm; the caption
+            // is centered on the meter and overflows the row instead of growing it.
+            Row(Modifier.height(MeterHeight), verticalAlignment = Alignment.CenterVertically) {
+                LinearMeter(meterProgress, color, Modifier.weight(1f), height = MeterHeight)
                 if (meterCaption != null) {
                     Spacer(Modifier.width(10.dp))
-                    Text(text = meterCaption, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+                    Text(
+                        text = meterCaption,
+                        modifier = Modifier.wrapContentHeight(unbounded = true),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textTertiary,
+                        maxLines = 1,
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * A sleep duration as the hero value, e.g. on the Today sleep card and in the sleep editor:
+ * digits in `metricXL`, with smaller, quieter "h" and "m" on the same baseline, so the
+ * number leads. Align a trailing "asleep" (`metricUnit`) with `Modifier.alignByBaseline()`.
+ */
+@Composable
+fun SleepDuration(
+    hours: Float,
+    modifier: Modifier = Modifier,
+) {
+    val colors = WellnessTheme.colors
+    Text(
+        text = formatSleepAnnotated(hours, SpanStyle(fontSize = 24.sp, letterSpacing = 0.sp, color = colors.textSecondary)),
+        modifier = modifier,
+        style = WellnessTheme.type.metricXL,
+        color = colors.textPrimary,
+        maxLines = 1,
+    )
+}
+
+private val MeterHeight = 6.dp

@@ -2,6 +2,6 @@
 <resources>
     <!-- Daybreak canvas ("morning paper"); values-night holds the deep-ink variant. -->
     <color name="daybreak_bg">#F7F5F2</color>
-    <!-- Deep ink behind the launcher and splash icon, in both themes. -->
-    <color name="ic_launcher_background">#0B0B12</color>
+    <!-- The launcher icon's indigo night, behind the splash icon in both themes. -->
+    <color name="ic_launcher_background">#1B1540</color>
 </resources>

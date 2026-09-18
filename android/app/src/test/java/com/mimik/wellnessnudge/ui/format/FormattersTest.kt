@@ -1,7 +1,10 @@
 package com.mimik.wellnessnudge.ui.format
 
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.unit.sp
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FormattersTest {
@@ -16,6 +19,16 @@ class FormattersTest {
         assertEquals("5h 45m", formatSleep(5.75f))
         assertEquals("6.5 h", formatSleepShort(6.5f))
         assertEquals("7 h", formatSleepShort(7f))
+    }
+
+    @Test
+    fun sleepForDisplayStylesOnlyTheUnits() {
+        val units = SpanStyle(fontSize = 24.sp)
+        val text = formatSleepAnnotated(6.5f, units)
+
+        assertEquals("6h\u200930m", text.text)
+        assertEquals(listOf("h", "m"), text.spanStyles.map { text.text.substring(it.start, it.end) })
+        assertTrue(text.spanStyles.all { it.item == units })
     }
 
     @Test

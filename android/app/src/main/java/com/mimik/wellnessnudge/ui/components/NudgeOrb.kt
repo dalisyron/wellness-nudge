@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import com.mimik.wellnessnudge.ui.theme.Daybreak
 import com.mimik.wellnessnudge.ui.theme.WellnessMotion
@@ -34,18 +35,23 @@ enum class OrbMode { Idle, Thinking, Still }
 
 /**
  * The on-device AI, drawn as a light source: Daybreak-colored light orbiting inside a
- * sphere, a specular highlight and a soft halo. [size] is the sphere's diameter; the halo
- * spills past it without taking layout space.
+ * sphere, a specular highlight and a soft halo. [size] is the sphere's diameter.
+ *
+ * The halo spills past the bounds without taking layout space: 0.25 × [size] at rest and up
+ * to 0.4 × [size] while [OrbMode.Thinking] breathes. Keep that much room between the orb and
+ * any clipping ancestor (scroll containers, lazy lists, clipped cards, AnimatedContent), or
+ * the glow ends in a hard edge; e.g. keep the generating orb outside the scrolling content.
  *
  * One draw pass with brushes built once per size; frames only move them, so animating
- * allocates nothing. Shows a still pose for [OrbMode.Still], in previews and snapshot
- * tests, and when the user turned animations off.
+ * allocates nothing, and the orb has its own layer, so frames redraw nothing else. Shows a
+ * still pose for [OrbMode.Still], in previews and snapshot tests, and when the user turned
+ * animations off.
  */
 @Composable
 fun NudgeOrb(
     size: Dp,
-    mode: OrbMode = OrbMode.Idle,
     modifier: Modifier = Modifier,
+    mode: OrbMode = OrbMode.Idle,
 ) {
     val animate = mode != OrbMode.Still && rememberAnimationsEnabled()
     val energy = animateFloatAsState(
@@ -87,6 +93,8 @@ internal fun OrbCanvas(
     Spacer(
         modifier
             .size(size)
+            // No clip: the halo draws past the bounds.
+            .graphicsLayer()
             .drawWithCache {
                 val brushes = OrbBrushes(radius = this.size.minDimension / 2f, haloAlpha = haloAlpha)
                 onDrawBehind { drawOrb(brushes, orbit(), breath(), energy()) }
@@ -113,9 +121,11 @@ private class OrbClock {
 
 /**
  * One colored light inside the sphere. The lights keep their places around a slowly
- * turning "warm axis" (coral and honey on one side, iris opposite, orchid between) and
- * sway around it, so the orb always reads as one sunrise gradient rather than loose spots.
- * Sizes and distances are fractions of the radius; angles are radians, clockwise from 3 o'clock.
+ * turning "warm axis" (coral and honey on one side, iris opposite, orchid on both sides
+ * between them) and sway around it, so the orb always reads as one sunrise gradient rather
+ * than loose spots, and warm light never meets iris without orchid in between (the direct
+ * mix is a dusty mauve). Sizes and distances are fractions of the radius; angles are
+ * radians, clockwise from 3 o'clock.
  */
 private class Blob(
     val color: Color,
@@ -136,12 +146,14 @@ private class Blob(
 
 private val HoneyCore = Color(0xFFFFE3AE)
 private val BodyLight = Color(0xFFA395FF)
-private val BodyEdge = Color(0xFF5D4CE6)
+private val BodyEdge = Color(0xFF6E5EF5)
 
 // Every period divides 48 s, and the orbit wraps at a multiple of that, so the loop is seamless.
 private val Blobs = arrayOf(
     Blob(Daybreak.Iris, Daybreak.Iris, 0.9f, 1.35f, 0.46f, offset = 3.3f, sway = 0.35f, swayPeriod = 48f, drift = 0.12f, driftPeriod = 16f),
     Blob(Daybreak.Orchid, Daybreak.Orchid, 0.8f, 1.15f, 0.42f, offset = -1.6f, sway = 0.45f, swayPeriod = 24f, drift = 0.15f, driftPeriod = 12f),
+    // Mirrors the orchid light across the warm axis, bridging honey and iris.
+    Blob(Daybreak.Orchid, Daybreak.Orchid, 0.7f, 1.0f, 0.45f, offset = 2.0f, sway = 0.35f, swayPeriod = 24f, drift = 0.15f, driftPeriod = 12f),
     Blob(Daybreak.Coral, Daybreak.Coral, 0.9f, 1.1f, 0.38f, offset = 0f, sway = 0.2f, swayPeriod = 16f, drift = 0.18f, driftPeriod = 9.6f),
     Blob(Daybreak.Honey, HoneyCore, 0.85f, 0.72f, 0.5f, offset = 0.4f, sway = 0.5f, swayPeriod = 12f, drift = 0.2f, driftPeriod = 8f),
 )
@@ -152,9 +164,9 @@ private class OrbBrushes(val radius: Float, haloAlpha: Float) {
     val halo = Brush.radialGradient(
         0f to Daybreak.Iris.copy(alpha = haloAlpha),
         EdgeStop to Daybreak.Iris.copy(alpha = haloAlpha),
-        0.66f to Daybreak.Iris.copy(alpha = haloAlpha * 0.6f),
-        0.78f to Daybreak.Iris.copy(alpha = haloAlpha * 0.26f),
-        0.9f to Daybreak.Iris.copy(alpha = haloAlpha * 0.07f),
+        haloStop(0.21f) to Daybreak.Iris.copy(alpha = haloAlpha * 0.6f),
+        haloStop(0.49f) to Daybreak.Iris.copy(alpha = haloAlpha * 0.26f),
+        haloStop(0.77f) to Daybreak.Iris.copy(alpha = haloAlpha * 0.07f),
         1f to Daybreak.Iris.copy(alpha = 0f),
         center = Offset.Zero,
         radius = radius * HaloScale,
@@ -250,7 +262,7 @@ private const val OrbitWrapSeconds = 480f
 private const val BreathSeconds = 3.2f
 private const val BreathWrapSeconds = BreathSeconds * 100
 private const val BreathAmplitude = 0.06f
-private const val HaloScale = 1.75f
+private const val HaloScale = 1.5f
 private const val WarmHaloScale = 1.05f
 
 // Where the orb's edge falls within the halo gradient.
@@ -261,3 +273,6 @@ private const val HighlightY = -0.42f
 // Still pose: warm light low on the right, iris upper left, like a sunrise.
 private const val WarmAxisStart = 0.85f
 private const val StillPoseSeconds = 0f
+
+/** A halo stop [fraction] of the way from the orb's edge to the end of the halo. */
+private fun haloStop(fraction: Float) = EdgeStop + (1f - EdgeStop) * fraction

@@ -15,7 +15,8 @@ private val GlowRadius = 520.dp
 
 /**
  * Root of every screen: the canvas color with the Daybreak glow radiating from the top
- * center. The glow stays put while content scrolls over it.
+ * center. The glow stays put while content scrolls over it. The app shell also draws one
+ * behind its nav host, so tabs crossfading over each other keep a steady glow.
  */
 @Composable
 fun DaybreakBackground(
@@ -28,10 +29,10 @@ fun DaybreakBackground(
             .fillMaxSize()
             .drawWithCache {
                 val glow = Brush.radialGradient(
-                    0f to colors.bgGlowIris,
-                    0.35f to colors.bgGlowOrchid,
-                    0.65f to colors.bgGlowCoral,
-                    1f to colors.bgGlowCoral.copy(alpha = 0f),
+                    0f to colors.bgGlowInner,
+                    0.35f to colors.bgGlowMiddle,
+                    0.65f to colors.bgGlowOuter,
+                    1f to colors.bgGlowOuter.copy(alpha = 0f),
                     center = Offset(size.width / 2f, 0f),
                     radius = GlowRadius.toPx(),
                 )

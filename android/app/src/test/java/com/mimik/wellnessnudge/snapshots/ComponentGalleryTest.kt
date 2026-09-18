@@ -19,22 +19,31 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,10 +75,12 @@ import com.mimik.wellnessnudge.ui.components.SecondaryButton
 import com.mimik.wellnessnudge.ui.components.SectionHeader
 import com.mimik.wellnessnudge.ui.components.SignalChip
 import com.mimik.wellnessnudge.ui.components.SkeletonBlock
+import com.mimik.wellnessnudge.ui.components.SleepDuration
 import com.mimik.wellnessnudge.ui.components.SleepStagesBar
 import com.mimik.wellnessnudge.ui.components.StatusDot
 import com.mimik.wellnessnudge.ui.components.SuggestionChip
 import com.mimik.wellnessnudge.ui.components.TextAction
+import com.mimik.wellnessnudge.ui.components.WellnessBottomSheetFrame
 import com.mimik.wellnessnudge.ui.components.WellnessCard
 import com.mimik.wellnessnudge.ui.components.WellnessSlider
 import com.mimik.wellnessnudge.ui.format.CategoryStyle
@@ -143,11 +154,14 @@ class ComponentGalleryTest {
     }
 
     @Test
-    fun actions() = paparazzi.snapshotThemes("actions") {
-        GalleryPage("Actions", "One gradient call to action per screen; everything else stays quiet.") {
+    fun actions() = paparazzi.snapshotThemes("actions") { ActionsPage() }
+
+    /** Disabled and in-progress variants, which must stay legible and look intentional. */
+    @Test
+    fun states() = paparazzi.snapshotThemes("states") {
+        GalleryPage("States", "Disabled controls and work in progress.") {
             Section("Gradient button") {
-                GradientButton(text = "Generate nudge", onClick = {}, modifier = Modifier.fillMaxWidth())
-                GradientButton(text = "Generate nudge", onClick = {}, modifier = Modifier.fillMaxWidth(), loading = true)
+                GradientButton(text = "Generate nudge", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
                 GradientButton(
                     text = "Setting up…",
                     onClick = {},
@@ -155,83 +169,25 @@ class ComponentGalleryTest {
                     enabled = false,
                     loading = true,
                 )
-                GradientButton(
-                    text = "Start using Wellness Nudge",
-                    onClick = {},
-                    modifier = Modifier.fillMaxWidth(),
-                    icon = Icons.AutoMirrored.Rounded.ArrowForward,
-                )
             }
-            Section("Secondary button") {
-                Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-                    SecondaryButton(text = "Try another", onClick = {}, modifier = Modifier.weight(1f), icon = Icons.Rounded.Refresh)
-                    SecondaryButton(text = "Done", onClick = {}, modifier = Modifier.weight(1f))
+            Section("Secondary and icon buttons") {
+                Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap), verticalAlignment = Alignment.CenterVertically) {
+                    SecondaryButton(text = "Try another", onClick = {}, modifier = Modifier.weight(1f), icon = Icons.Rounded.Refresh, enabled = false)
+                    CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete", onClick = {}, enabled = false)
                 }
             }
-            Section("Icon and text actions") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircleIconButton(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", onClick = {})
-                    Spacer(Modifier.width(12.dp))
-                    CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete", onClick = {})
-                    Spacer(Modifier.weight(1f))
-                    TextAction(text = "Sample day", icon = Icons.Rounded.Shuffle, onClick = {})
-                    TextAction(text = "Retry", icon = Icons.Rounded.Refresh, onClick = {})
-                }
-            }
-            Section("On-device pill") {
+            Section("Runtime") {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OnDevicePill(status = RuntimeStatus.Ready, onClick = {})
                     OnDevicePill(status = RuntimeStatus.Starting, onClick = {})
                     OnDevicePill(status = RuntimeStatus.Error, onClick = {})
                 }
+                IndeterminateMeter(brush = WellnessTheme.colors.daybreak)
             }
         }
     }
 
     @Test
-    fun chips() = paparazzi.snapshotThemes("chips") {
-        val colors = WellnessTheme.colors
-        GalleryPage("Chips and badges", "Choices, categories and the signals a nudge was grounded in.") {
-            Section("Suggestion chips") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Sleep better tonight", "Lower stress", "More energy", "Recover from training", "Move more today")
-                        .forEachIndexed { index, text -> SuggestionChip(text = text, selected = index == 0, onClick = {}) }
-                }
-            }
-            Section("Filters") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("All", "Helpful", "Not helpful", "Unrated")
-                        .forEachIndexed { index, text -> SuggestionChip(text = text, selected = index == 0, onClick = {}) }
-                }
-            }
-            Section("Categories") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CategoryStyle.Slugs.forEach { CategoryBadge(category = it) }
-                }
-            }
-            Section("Signals") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SignalChip("${formatSleep(6.5f)} sleep", colors.sleep)
-                    SignalChip("Deep 15%", colors.deepSleep)
-                    SignalChip("REM 18%", colors.rem)
-                    SignalChip("Resting HR 64", colors.restingHr)
-                    SignalChip("HRV 45 ms", colors.hrv)
-                    SignalChip("${formatSteps(7000)} steps", colors.steps)
-                    SignalChip("Goal · Sleep better tonight", colors.accent)
-                }
-            }
-            Section("Icon badges and status") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CategoryStyle.Slugs.take(5).forEach { IconBadge(CategoryStyle.of(it).icon, CategoryStyle.of(it).color) }
-                    IconBadge(Icons.Rounded.Bedtime, colors.sleep, size = 40.dp)
-                    Spacer(Modifier.weight(1f))
-                    StatusDot(colors.success, pulsing = true)
-                    StatusDot(colors.warning)
-                    StatusDot(colors.danger)
-                }
-            }
-        }
-    }
+    fun chips() = paparazzi.snapshotThemes("chips") { ChipsPage() }
 
     @Test
     fun cards() = paparazzi.snapshotThemes("cards") {
@@ -277,6 +233,7 @@ class ComponentGalleryTest {
                     onClick = {},
                     meterProgress = 0.7f,
                     meterCaption = "of 10k",
+                    shape = WellnessShapes.Card,
                 )
             }
         }
@@ -358,6 +315,48 @@ class ComponentGalleryTest {
         }
     }
 
+    /** The sheet as the editors and runtime sheet use it, drawn in place of its dialog window. */
+    @Test
+    fun sheet() = paparazzi.snapshotThemes("sheet") {
+        val colors = WellnessTheme.colors
+        Box(Modifier.fillMaxSize()) {
+            GalleryPage("Sheets", "WellnessBottomSheet over a screen: 32 dp corners, surface color, quiet handle.") {}
+            WellnessBottomSheetFrame {
+                Column(
+                    Modifier.padding(horizontal = WellnessSpacing.ScreenMargin),
+                    verticalArrangement = Arrangement.spacedBy(WellnessSpacing.SectionGap),
+                ) {
+                    Text("Last night's sleep", style = MaterialTheme.typography.titleLarge)
+                    EditorRow("Total sleep", formatSleep(6.5f), 6.5f, 0f..12f, colors.sleep, steps = 47)
+                    EditorRow("Deep sleep", "15%", 15f, 0f..40f, colors.deepSleep)
+                    SecondaryButton(text = "Done", onClick = {}, modifier = Modifier.fillMaxWidth())
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
+
+    /** Stock Material overlays on the derived color scheme: an alert dialog and a snackbar. */
+    @Test
+    fun dialog() = paparazzi.snapshotThemes("dialog") {
+        GalleryPage("Dialogs and snackbars", "Material components on the Daybreak color scheme.") {
+            Section("Alert dialog") {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { DeleteDialogMock() }
+            }
+            Section("Snackbar") {
+                // As SnackbarHost draws one: the action in the snackbar's own action color.
+                Snackbar(
+                    action = {
+                        TextButton(
+                            onClick = {},
+                            colors = ButtonDefaults.textButtonColors(contentColor = SnackbarDefaults.actionColor),
+                        ) { Text("Retry") }
+                    },
+                ) { Text("Couldn't save your feedback.") }
+            }
+        }
+    }
+
     @Test
     fun appIcon() = paparazzi.snapshotThemes("app_icon") {
         GalleryPage("App icon", "Adaptive icon under common launcher masks, the themed icon, and the splash.") {
@@ -379,8 +378,161 @@ class ComponentGalleryTest {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GalleryPage(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun ActionsPage() {
+    GalleryPage("Actions", "One gradient call to action per screen; everything else stays quiet.") {
+        Section("Gradient button") {
+            GradientButton(text = "Generate nudge", onClick = {}, modifier = Modifier.fillMaxWidth())
+            GradientButton(text = "Generate nudge", onClick = {}, modifier = Modifier.fillMaxWidth(), loading = true)
+            GradientButton(
+                text = "Start using Wellness Nudge",
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.AutoMirrored.Rounded.ArrowForward,
+            )
+        }
+        Section("Secondary button") {
+            Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
+                SecondaryButton(text = "Try another", onClick = {}, modifier = Modifier.weight(1f), icon = Icons.Rounded.Refresh)
+                SecondaryButton(text = "Done", onClick = {}, modifier = Modifier.weight(1f))
+            }
+        }
+        Section("Icon and text actions") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleIconButton(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", onClick = {})
+                Spacer(Modifier.width(12.dp))
+                CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete", onClick = {})
+                Spacer(Modifier.weight(1f))
+                TextAction(text = "Sample day", icon = Icons.Rounded.Shuffle, onClick = {})
+                TextAction(text = "Retry", icon = Icons.Rounded.Refresh, onClick = {})
+            }
+        }
+        Section("On-device pill") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OnDevicePill(status = RuntimeStatus.Ready, onClick = {})
+                OnDevicePill(status = RuntimeStatus.Starting, onClick = {})
+                OnDevicePill(status = RuntimeStatus.Error, onClick = {})
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ChipsPage() {
+    val colors = WellnessTheme.colors
+    GalleryPage("Chips and badges", "Choices, categories and the signals a nudge was grounded in.") {
+        Section("Suggestion chips") {
+            // Chips lay out 48 dp tall around a 36 dp pill, which spaces the rows.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Sleep better tonight", "Lower stress", "More energy", "Recover from training", "Move more today")
+                    .forEachIndexed { index, text -> SuggestionChip(text = text, selected = index == 0, onClick = {}) }
+            }
+        }
+        Section("Filters") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("All", "Helpful", "Not helpful", "Unrated").forEachIndexed { index, text ->
+                    SuggestionChip(text = text, selected = index == 0, onClick = {}, checkWhenSelected = true)
+                }
+            }
+        }
+        Section("Categories") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CategoryStyle.Slugs.forEach { CategoryBadge(category = it) }
+            }
+        }
+        Section("Signals") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SignalChip("${formatSleep(6.5f)} sleep", colors.sleep)
+                SignalChip("Deep 15%", colors.deepSleep)
+                SignalChip("REM 18%", colors.rem)
+                SignalChip("Resting HR 64", colors.restingHr)
+                SignalChip("HRV 45 ms", colors.hrv)
+                SignalChip("${formatSteps(7000)} steps", colors.steps)
+                SignalChip("Goal · Sleep better tonight", colors.accent)
+            }
+        }
+        Section("Icon badges and status") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CategoryStyle.Slugs.take(5).forEach { IconBadge(CategoryStyle.of(it).icon, CategoryStyle.of(it).color) }
+                IconBadge(Icons.Rounded.Bedtime, colors.sleep, size = 40.dp)
+                Spacer(Modifier.weight(1f))
+                StatusDot(colors.success, pulsing = true)
+                StatusDot(colors.warning)
+                StatusDot(colors.danger)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorRow(
+    label: String,
+    value: String,
+    current: Float,
+    range: ClosedFloatingPointRange<Float>,
+    color: Color,
+    steps: Int = 0,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row {
+            Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.titleSmall, color = WellnessTheme.colors.textSecondary)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircleIconButton(Icons.Rounded.Remove, contentDescription = "Less", onClick = {})
+            Spacer(Modifier.width(16.dp))
+            WellnessSlider(
+                value = current,
+                onValueChange = {},
+                valueRange = range,
+                color = color,
+                modifier = Modifier.weight(1f),
+                steps = steps,
+                valueDescription = value,
+            )
+            Spacer(Modifier.width(16.dp))
+            CircleIconButton(Icons.Rounded.Add, contentDescription = "More", onClick = {})
+        }
+    }
+}
+
+/**
+ * Material's AlertDialog as it draws itself (its dialog window can't be captured): the same
+ * shape, container and text colors and text buttons, read from the theme.
+ */
+@Composable
+private fun DeleteDialogMock() {
+    Surface(
+        modifier = Modifier.widthIn(min = 280.dp, max = 340.dp),
+        shape = AlertDialogDefaults.shape,
+        color = AlertDialogDefaults.containerColor,
+        tonalElevation = AlertDialogDefaults.TonalElevation,
+    ) {
+        Column(Modifier.padding(24.dp)) {
+            Text(
+                "Delete this nudge?",
+                style = MaterialTheme.typography.headlineSmall,
+                color = AlertDialogDefaults.titleContentColor,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "It will be removed from this phone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlertDialogDefaults.textContentColor,
+            )
+            Spacer(Modifier.height(24.dp))
+            Row(Modifier.align(Alignment.End)) {
+                TextButton(onClick = {}) { Text("Cancel") }
+                TextButton(onClick = {}) { Text("Delete", color = WellnessTheme.colors.dangerText) }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun GalleryPage(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -395,7 +547,7 @@ private fun GalleryPage(title: String, subtitle: String, content: @Composable Co
 }
 
 @Composable
-private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
         SectionHeader(title)
         Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
@@ -433,11 +585,11 @@ private fun SleepCard() {
             IconBadge(Icons.Rounded.Bedtime, colors.sleep)
             Spacer(Modifier.width(10.dp))
             Text("Sleep", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(14.dp))
+            Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(14.dp))
         }
         Spacer(Modifier.height(16.dp))
         Row {
-            Text(formatSleep(6.5f), style = WellnessTheme.type.metricXL, modifier = Modifier.alignByBaseline())
+            SleepDuration(6.5f, Modifier.alignByBaseline())
             Spacer(Modifier.width(8.dp))
             Text(
                 "asleep",

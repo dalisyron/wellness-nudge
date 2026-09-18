@@ -16,19 +16,30 @@ val Manrope = FontFamily(
     Font(R.font.manrope_medium, FontWeight.Medium),
     Font(R.font.manrope_semibold, FontWeight.SemiBold),
     Font(R.font.manrope_bold, FontWeight.Bold),
-    Font(R.font.manrope_extrabold, FontWeight.ExtraBold),
 )
 
-/** Editorial serif: greetings, titles and the nudge itself. */
+/** Editorial serif at its 16 pt text size: the 18 sp quotes and journal previews. */
 val Newsreader = FontFamily(
     Font(R.font.newsreader_regular, FontWeight.Normal),
-    Font(R.font.newsreader_medium, FontWeight.Medium),
     Font(R.font.newsreader_italic, FontWeight.Normal, FontStyle.Italic),
 )
 
-// Tabular figures keep metric values from jittering while they animate. The serif styles
-// set prose (numbers inside sentences), which reads better with proportional figures.
+/**
+ * Newsreader's 36 pt optical size: finer hairlines and tighter spacing for the display and
+ * headline styles (greetings, titles, the nudge itself), where the text cut looks wide.
+ */
+val NewsreaderDisplay = FontFamily(
+    Font(R.font.newsreader_display, FontWeight.Normal),
+)
+
 private const val TabularFigures = "tnum"
+
+/**
+ * Tabular (fixed-width) figures, for numbers that change in place: the live elapsed time
+ * ("3.2 s"), download progress ("84 / 368 MB · 23%"), animating metric values. Running text
+ * keeps proportional figures, where a tabular "1" looks detached.
+ */
+fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = TabularFigures)
 
 private fun manrope(weight: FontWeight, size: Int, line: Int, tracking: Float = 0f) = TextStyle(
     fontFamily = Manrope,
@@ -36,11 +47,16 @@ private fun manrope(weight: FontWeight, size: Int, line: Int, tracking: Float = 
     fontSize = size.sp,
     lineHeight = line.sp,
     letterSpacing = tracking.sp,
-    fontFeatureSettings = TabularFigures,
 )
 
-private fun newsreader(size: Int, line: Int, tracking: Float = 0f, style: FontStyle = FontStyle.Normal) = TextStyle(
-    fontFamily = Newsreader,
+private fun serif(
+    family: FontFamily,
+    size: Int,
+    line: Int,
+    tracking: Float = 0f,
+    style: FontStyle = FontStyle.Normal,
+) = TextStyle(
+    fontFamily = family,
     fontWeight = FontWeight.Normal,
     fontStyle = style,
     fontSize = size.sp,
@@ -53,12 +69,12 @@ private fun newsreader(size: Int, line: Int, tracking: Float = 0f, style: FontSt
  * the interface. `labelSmall` is the eyebrow style: uppercase the text at the call site.
  */
 val WellnessTypography = Typography(
-    displayLarge = newsreader(36, 42, -0.5f),
-    displayMedium = newsreader(32, 38, -0.3f),
-    displaySmall = newsreader(28, 34, -0.3f),
-    headlineLarge = newsreader(26, 32, -0.2f),
-    headlineMedium = newsreader(24, 30, -0.2f),
-    headlineSmall = newsreader(26, 35, -0.2f),
+    displayLarge = serif(NewsreaderDisplay, 36, 42, -0.3f),
+    displayMedium = serif(NewsreaderDisplay, 32, 38, -0.2f),
+    displaySmall = serif(NewsreaderDisplay, 28, 34, -0.1f),
+    headlineLarge = serif(NewsreaderDisplay, 26, 32, -0.1f),
+    headlineMedium = serif(NewsreaderDisplay, 24, 30, -0.1f),
+    headlineSmall = serif(NewsreaderDisplay, 26, 35),
     titleLarge = manrope(FontWeight.SemiBold, 20, 26),
     titleMedium = manrope(FontWeight.SemiBold, 16, 22),
     titleSmall = manrope(FontWeight.SemiBold, 14, 20),
@@ -73,11 +89,11 @@ val WellnessTypography = Typography(
 /** Styles outside Material's scale. Read them through `WellnessTheme.type`. */
 @Immutable
 class WellnessTypeExtras(
-    /** Hero metric value, e.g. the sleep duration. */
+    /** Hero metric value, e.g. the sleep duration. Tabular figures. */
     val metricXL: TextStyle,
-    /** Tile metric value. */
+    /** Tile metric value. Tabular figures. */
     val metricL: TextStyle,
-    /** Unit next to a metric value; pair it with textSecondary. */
+    /** Unit next to a metric value; pair it with textSecondary. Tabular figures. */
     val metricUnit: TextStyle,
     /** Quoted helpful nudges in For you. */
     val nudgeQuote: TextStyle,
@@ -86,9 +102,10 @@ class WellnessTypeExtras(
 )
 
 internal val WellnessTypeExtrasDefault = WellnessTypeExtras(
-    metricXL = manrope(FontWeight.Medium, 44, 48, -1.0f),
-    metricL = manrope(FontWeight.Medium, 32, 36, -0.6f),
-    metricUnit = manrope(FontWeight.Medium, 14, 18),
-    nudgeQuote = newsreader(18, 26, style = FontStyle.Italic),
-    nudgePreview = newsreader(18, 25),
+    // Metric values animate ("Sample day"), so their digits keep a fixed width.
+    metricXL = manrope(FontWeight.Medium, 44, 48, -1.0f).tabular(),
+    metricL = manrope(FontWeight.Medium, 32, 36, -0.6f).tabular(),
+    metricUnit = manrope(FontWeight.Medium, 14, 18).tabular(),
+    nudgeQuote = serif(Newsreader, 18, 26, style = FontStyle.Italic),
+    nudgePreview = serif(Newsreader, 18, 25),
 )

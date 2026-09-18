@@ -20,9 +20,14 @@ import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 /**
  * Full-screen nudge. PLACEHOLDER until the Nudge screen (spec 4.3) replaces it.
  *
- * @param nudgeId the saved nudge to show (`nudge/{id}`), or null for the generation in
- *   progress (`nudge/new`, observe [NudgeRepository.generation]).
- * @param onTryAnother regenerates with a request; the shell swaps this screen for `nudge/new`.
+ * @param nudgeId the saved nudge to show (`nudge/saved/{id}`), or null on `nudge/new`: render
+ *   [NudgeRepository.generation] (Running: generating, Success: the result, Failed: the error).
+ *   Idle means there is nothing to show and the shell pops the screen, so keep rendering the
+ *   last non-Idle state while it leaves. Deleting doesn't reset the generation: after
+ *   [NudgeRepository.delete] returns, call [onBack] and the result stays put while it exits.
+ * @param onTryAnother regenerates with a request. On `nudge/saved/{id}` the shell swaps this
+ *   screen for `nudge/new`; on `nudge/new` the generation simply turns Running again. The
+ *   shell ignores it while the screen is entering or leaving.
  * @param onDone leaves the screen, like [onBack].
  */
 @Composable

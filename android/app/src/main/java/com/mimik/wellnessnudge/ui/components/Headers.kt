@@ -11,13 +11,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import java.util.Locale
 
-/** Small uppercase tracked label (labelSmall) for section headers, dates and meta lines. */
+/**
+ * Small uppercase tracked label (labelSmall) for section headers, dates and meta lines. The
+ * default textTertiary keeps 4.5:1 on every surface.
+ */
 @Composable
 fun Eyebrow(
     text: String,
@@ -38,7 +43,7 @@ fun Eyebrow(
  * Section eyebrow with an optional trailing [action] (usually a [TextAction]). The header
  * is only as tall as its label, so the 12 dp gap to the content stays exact; the action is
  * centered on the label and overhangs it, keeping its full touch target, with its label
- * lined up with the content edge.
+ * lined up with the content edge. The title is a heading for TalkBack navigation.
  */
 @Composable
 fun SectionHeader(
@@ -49,7 +54,7 @@ fun SectionHeader(
     Layout(
         modifier = modifier.fillMaxWidth(),
         content = {
-            Eyebrow(title, color = WellnessTheme.colors.textSecondary)
+            Eyebrow(title, Modifier.semantics { heading() }, color = WellnessTheme.colors.textSecondary)
             if (action != null) Box { action() }
         },
     ) { measurables, constraints ->
@@ -69,13 +74,13 @@ fun SectionHeader(
     }
 }
 
-/** Title block for the tab screens: eyebrow, serif title and a secondary subtitle. */
+/** Title block for the tab screens: eyebrow, serif title (a heading) and a secondary subtitle. */
 @Composable
 fun ScreenTitle(
-    eyebrow: String? = null,
     title: String,
-    subtitle: String? = null,
     modifier: Modifier = Modifier,
+    eyebrow: String? = null,
+    subtitle: String? = null,
 ) {
     val colors = WellnessTheme.colors
     Column(modifier) {
@@ -83,7 +88,12 @@ fun ScreenTitle(
             Eyebrow(eyebrow)
             Spacer(Modifier.height(10.dp))
         }
-        Text(text = title, style = MaterialTheme.typography.displayMedium, color = colors.textPrimary)
+        Text(
+            text = title,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.displayMedium,
+            color = colors.textPrimary,
+        )
         if (subtitle != null) {
             Spacer(Modifier.height(8.dp))
             Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)

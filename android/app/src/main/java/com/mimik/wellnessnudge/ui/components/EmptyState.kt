@@ -14,14 +14,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
-/** Centered empty state: a still orb, a serif title, a line of guidance and an optional action. */
+/**
+ * Centered empty state: a still orb, a serif title, a line of guidance and an optional
+ * action. The orb's halo spills 18 dp above the column; keep that clear of clipping edges.
+ */
 @Composable
 fun EmptyState(
     title: String,
     body: String,
+    modifier: Modifier = Modifier,
     actionText: String? = null,
     onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     val colors = WellnessTheme.colors
     Column(
@@ -32,7 +35,7 @@ fun EmptyState(
     ) {
         NudgeOrb(size = 72.dp, mode = OrbMode.Still)
         // Room for the orb's halo.
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
