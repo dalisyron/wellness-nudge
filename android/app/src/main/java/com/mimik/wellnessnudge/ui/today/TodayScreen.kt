@@ -3,10 +3,8 @@ package com.mimik.wellnessnudge.ui.today
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -49,9 +48,11 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -170,7 +172,8 @@ fun TodayScreen(
                 .statusBarsPadding()
                 // Clear of a side navigation bar and the camera cutout in landscape.
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                .padding(top = HeaderTopPadding, bottom = if (unavailable) FooterHeight + NoticeHeight else FooterHeight),
+                // With the notice over the fade, the content ends above the fade.
+                .padding(top = HeaderTopPadding, bottom = if (unavailable) FooterReserve else FooterHeight),
         ) {
             Column(Modifier.padding(horizontal = WellnessSpacing.ScreenMargin)) {
                 Header(runtime = state.runtime, onOpenRuntime = { leaveGoal(onOpenRuntime) })
@@ -541,8 +544,10 @@ private fun GoalSuggestions(goal: String, onSelect: (String) -> Unit) {
 /**
  * The sticky call to action. A scrim of the canvas color fades in above the button and
  * stays solid down behind the tab bar (or the keyboard), so content scrolls away cleanly.
- * While the on-device service doesn't answer, a line above the button says so, with the way
- * to the runtime details; the button stays live, as the service may be back by then.
+ * While the on-device service doesn't answer, a line just above the button says so, with the
+ * way to the runtime details; the button stays live, as the service may be back by then. The
+ * line hangs over the lower part of the fade instead of growing the footer, so the fade keeps
+ * its top and what rests above it (the goal's suggestions) stays clear.
  */
 @Composable
 private fun GenerateFooter(
@@ -553,47 +558,59 @@ private fun GenerateFooter(
     modifier: Modifier = Modifier,
 ) {
     val bg = WellnessTheme.colors.bg
-    Column(
+    Box(
         modifier
             .fillMaxWidth()
             .drawWithCache {
-                // Eased in and out (smoothstep), so the fade has no visible start or end.
-                val scrim = Brush.verticalGradient(
-                    0f to bg.copy(alpha = 0f),
-                    0.25f to bg.copy(alpha = 0.16f),
-                    0.5f to bg.copy(alpha = 0.5f),
-                    0.75f to bg.copy(alpha = 0.84f),
-                    1f to bg,
-                    startY = 0f,
-                    endY = FooterFade.toPx(),
-                )
+                val scrim = canvasFade(bg, startY = 0f, endY = FooterFade.toPx())
                 onDrawBehind { drawRect(scrim) }
             }
-            .padding(contentPadding)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            .padding(
-                start = WellnessSpacing.ScreenMargin,
-                end = WellnessSpacing.ScreenMargin,
-                top = FooterFade,
-                bottom = FooterGap,
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(contentPadding),
     ) {
+        GradientButton(
+            text = "Generate nudge",
+            onClick = onGenerate,
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .padding(start = WellnessSpacing.ScreenMargin, end = WellnessSpacing.ScreenMargin, top = FooterFade, bottom = FooterGap)
+                .fillMaxWidth(),
+        )
         AnimatedVisibility(
             visible = unavailable,
-            enter = fadeIn(tween(WellnessMotion.SmallMillis)) + expandVertically(tween(WellnessMotion.SmallMillis)),
-            exit = fadeOut(tween(WellnessMotion.SmallMillis)) + shrinkVertically(tween(WellnessMotion.SmallMillis)),
+            // Takes no room: it hangs over the fade, its bottom on the button's top edge.
+            modifier = Modifier.layout { measurable, constraints ->
+                val notice = measurable.measure(constraints)
+                layout(notice.width, 0) { notice.placeRelative(0, FooterFade.roundToPx() - notice.height) }
+            },
+            enter = fadeIn(tween(WellnessMotion.SmallMillis)),
+            exit = fadeOut(tween(WellnessMotion.SmallMillis)),
         ) {
             RuntimeNotice(onOpenRuntime)
         }
-        GradientButton(text = "Generate nudge", onClick = onGenerate, modifier = Modifier.fillMaxWidth())
     }
 }
 
-/** "The on-device service isn’t answering." with a Details action that opens the runtime sheet. */
+/**
+ * "The on-device service isn’t answering." with a Details action that opens the runtime
+ * sheet, across the footer's width. Its backing, clear across the fade's top and then solid,
+ * keeps content scrolling under the footer from running behind the words.
+ */
 @Composable
 private fun RuntimeNotice(onOpenRuntime: () -> Unit) {
-    Row(Modifier.height(NoticeHeight), verticalAlignment = Alignment.CenterVertically) {
+    val bg = WellnessTheme.colors.bg
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .drawWithCache {
+                val backing = canvasFade(bg, startY = FadeClearance.toPx(), endY = (FadeClearance + NoticeFeather).toPx())
+                onDrawBehind { drawRect(backing) }
+            }
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .padding(horizontal = WellnessSpacing.ScreenMargin)
+            .heightIn(min = NoticeHeight),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
             text = "The on-device service isn’t answering.",
             modifier = Modifier
@@ -602,9 +619,26 @@ private fun RuntimeNotice(onOpenRuntime: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = WellnessTheme.colors.dangerText,
         )
-        TextAction(text = "Details", icon = null, onClick = onOpenRuntime)
+        // Its touch target spans the notice's height and no more, clear of the button below.
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides NoticeHeight) {
+            TextAction(text = "Details", icon = null, onClick = onOpenRuntime)
+        }
     }
 }
+
+/**
+ * The canvas color fading in from [startY] to [endY], eased in and out (smoothstep), so the
+ * fade has no visible start or end.
+ */
+private fun canvasFade(bg: Color, startY: Float, endY: Float): Brush = Brush.verticalGradient(
+    0f to bg.copy(alpha = 0f),
+    0.25f to bg.copy(alpha = 0.16f),
+    0.5f to bg.copy(alpha = 0.5f),
+    0.75f to bg.copy(alpha = 0.84f),
+    1f to bg,
+    startY = startY,
+    endY = endY,
+)
 
 /**
  * The top of the Daybreak canvas redrawn over the status bar, fading out at its lower edge,
@@ -679,9 +713,16 @@ private val UnitGap = 4.dp
 private val FooterFade = 44.dp
 private val FooterGap = 16.dp
 private val GenerateButtonHeight = 60.dp
+private val FooterReserve = FooterFade + GenerateButtonHeight + FooterGap
 
-// The unavailable notice's row: its Details action keeps a 48 dp touch target.
-private val NoticeHeight = 48.dp
+// The top of the footer's fade, still too faint to see: the unavailable notice's backing
+// starts below it, leaving whatever rests there (the chips' shadows) as it is.
+private val FadeClearance = 4.dp
+
+// The unavailable notice fills the fade's height, which its Details action takes as its
+// touch target (the spec's 44 dp); its backing eases in over this much below the clearance.
+private val NoticeHeight = FooterFade
+private val NoticeFeather = 12.dp
 
 // Room at the end of the content. The last suggestions stop in the top quarter of the fade,
 // where it is still too faint to see (the chips' touch targets reach lower than the pills).
