@@ -76,6 +76,33 @@ class TodayScreenTest {
     }
 
     /**
+     * Text at 115%, Android's first step up, on the phone's own frame. The flow no longer fits
+     * above the button, so the goal moves up under the header; the body card, "Resting HR" on
+     * two lines, runs under the fade.
+     */
+    @Test
+    fun largerText() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = Pixel9ProXL.copy(fontScale = 1.15f))
+        paparazzi.snapshotThemes("today_larger_text") { Today(TodayPreviewData.default) }
+    }
+
+    /** A 411 dp phone: the goal goes first, and the body card's values step down to fit. */
+    @Test
+    fun narrowPhone() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = NarrowPhone)
+        paparazzi.snapshotThemes("today_narrow") { Today(TodayPreviewData.default) }
+    }
+
+    /** The runtime doesn't answer on the 411 dp phone: over the content under it, the notice fades it out. */
+    @Test
+    fun narrowPhoneUnavailable() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = NarrowPhone)
+        paparazzi.snapshotThemes("today_narrow_unavailable") {
+            Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Error))
+        }
+    }
+
+    /**
      * A small phone, scrolled to the end: the columns can't hold the widest values, so the
      * signals turn into tiles, stacked, since half-width tiles would cut "Resting HR" short.
      */
@@ -85,6 +112,15 @@ class TodayScreenTest {
         paparazzi.snapshotThemes("today_small_phone") { Today(TodayPreviewData.default, scrolledToEnd = true) }
     }
 }
+
+/** 1080 x 2400 px at 420 dpi: 411 x 914 dp, as a Pixel 8. */
+private val NarrowPhone = Pixel9ProXL.copy(
+    screenWidth = 1080,
+    screenHeight = 2400,
+    xdpi = 420,
+    ydpi = 420,
+    density = Density.create(420),
+)
 
 /** 720 x 1600 px at 320 dpi: 360 x 800 dp, the narrowest common phone. */
 private val SmallPhone = Pixel9ProXL.copy(

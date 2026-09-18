@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -54,15 +55,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -71,6 +76,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -88,6 +94,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -126,7 +133,9 @@ import kotlin.math.roundToInt
  *
  * The content scrolls under a footer that fades it out above the button. [contentPadding]
  * is the room the floating tab bar takes at the bottom, or the keyboard while it is taller;
- * it is read during layout, so the footer rides the keyboard without recomposing.
+ * it is read during layout, so the footer rides the keyboard without recomposing. The goal
+ * comes last while everything fits above the footer, and first, under the header, when it
+ * doesn't (see [TodayFlow]).
  *
  * @param scrollState the screen's scroll position; hoisted so callers can move it.
  * @param goalFocusRequester moves focus to the goal input.
@@ -156,17 +165,82 @@ fun TodayScreen(
         then()
     }
 
-    // While the goal is typed, keep the end of the content (the field and its suggestions) in
-    // view above the footer, following the keyboard as it opens and pads the bottom.
-    LaunchedEffect(goalFocused, scrollState) {
-        if (goalFocused) {
-            snapshotFlow { scrollState.maxValue }.collectLatest { scrollState.animateScrollTo(it) }
-        }
-    }
-
     DaybreakBackground(modifier) {
-        Column(
-            Modifier
+        val statusBars = WindowInsets.statusBars
+        val ime = WindowInsets.ime
+        val order = remember { FlowOrder() }
+
+        // While the goal is typed at the end of the content, keep it and its suggestions in
+        // view above the footer, following the keyboard as it opens and pads the bottom.
+        // First, under the header, the goal is in view already.
+        LaunchedEffect(goalFocused, scrollState) {
+            if (goalFocused && !order.goalFirst) {
+                snapshotFlow { scrollState.maxValue }.collectLatest { scrollState.animateScrollTo(it) }
+            }
+        }
+
+        TodayFlow(
+            order = order,
+            // Above the footer's fade at rest: the screen less the status bar, the header's
+            // top padding, the footer and the tab bar under it.
+            room = { viewport ->
+                viewport - statusBars.getTop(this) - HeaderTopPadding.roundToPx() - FooterReserve.roundToPx() -
+                    contentPadding.calculateTopPadding().roundToPx() - contentPadding.calculateBottomPadding().roundToPx()
+            },
+            // While the goal is typed, and until the keyboard is gone, keep the order: the
+            // keyboard takes its room only for a while.
+            hold = { goalFocused || ime.getBottom(this) > 0 },
+            // Room under the content for the footer. At the end of the page the last suggestions
+            // may stop in the fade's faint top quarter, a last card (the goal first) above the
+            // fade. With the notice showing, the content stops above the notice, and above the
+            // fade it draws over content running under the footer.
+            endSpace = { goalFirst ->
+                when {
+                    !unavailable -> if (goalFirst) FooterReserve else FooterHeight
+                    goalFirst -> FooterReserve + FooterFade
+                    else -> FooterReserve
+                }
+            },
+            header = {
+                Header(
+                    runtime = state.runtime,
+                    onOpenRuntime = { leaveGoal(onOpenRuntime) },
+                    modifier = Modifier.padding(horizontal = WellnessSpacing.ScreenMargin),
+                )
+            },
+            signals = {
+                Column(Modifier.padding(horizontal = WellnessSpacing.ScreenMargin)) {
+                    SectionHeader(
+                        title = "Last night",
+                        action = {
+                            TextAction(text = "Sample day", icon = Icons.Rounded.Shuffle, onClick = { leaveGoal(onSampleDay) })
+                        },
+                    )
+                    Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
+                    SleepCard(metrics = state.metrics, onClick = { leaveGoal { onOpenEditor(TodayEditor.Sleep) } })
+                    Spacer(Modifier.height(WellnessSpacing.SectionGap))
+                    SectionHeader(title = "Body")
+                    Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
+                    BodySection(metrics = state.metrics, onOpenEditor = { editor -> leaveGoal { onOpenEditor(editor) } })
+                }
+            },
+            goal = {
+                Column {
+                    Column(Modifier.padding(horizontal = WellnessSpacing.ScreenMargin)) {
+                        SectionHeader(title = "Today’s focus")
+                        Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
+                        GoalField(
+                            value = state.goal,
+                            onValueChange = onGoalChange,
+                            focusRequester = goalFocusRequester,
+                            onFocusChange = { goalFocused = it },
+                        )
+                    }
+                    Spacer(Modifier.height(WellnessSpacing.ItemGap - ChipTargetInset))
+                    GoalSuggestions(goal = state.goal, onSelect = { suggestion -> leaveGoal { onGoalChange(suggestion) } })
+                }
+            },
+            modifier = Modifier
                 .fillMaxSize()
                 // A tap on empty space puts the keyboard away.
                 .pointerInput(focusManager) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
@@ -175,41 +249,12 @@ fun TodayScreen(
                 .statusBarsPadding()
                 // Clear of a side navigation bar and the camera cutout in landscape.
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                // With the notice over the fade, the content ends above the fade.
-                .padding(top = HeaderTopPadding, bottom = if (unavailable) FooterReserve else FooterHeight),
-        ) {
-            Column(Modifier.padding(horizontal = WellnessSpacing.ScreenMargin)) {
-                Header(runtime = state.runtime, onOpenRuntime = { leaveGoal(onOpenRuntime) })
-                Spacer(Modifier.height(WellnessSpacing.SectionGap))
-                SectionHeader(
-                    title = "Last night",
-                    action = {
-                        TextAction(text = "Sample day", icon = Icons.Rounded.Shuffle, onClick = { leaveGoal(onSampleDay) })
-                    },
-                )
-                Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
-                SleepCard(metrics = state.metrics, onClick = { leaveGoal { onOpenEditor(TodayEditor.Sleep) } })
-                Spacer(Modifier.height(WellnessSpacing.SectionGap))
-                SectionHeader(title = "Body")
-                Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
-                BodySection(metrics = state.metrics, onOpenEditor = { editor -> leaveGoal { onOpenEditor(editor) } })
-                Spacer(Modifier.height(WellnessSpacing.SectionGap))
-                SectionHeader(title = "Today’s focus")
-                Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
-                GoalField(
-                    value = state.goal,
-                    onValueChange = onGoalChange,
-                    focusRequester = goalFocusRequester,
-                    onFocusChange = { goalFocused = it },
-                )
-            }
-            // The chips' 48 dp touch targets add 6 dp above the visible pills.
-            Spacer(Modifier.height(WellnessSpacing.ItemGap - 6.dp))
-            GoalSuggestions(goal = state.goal, onSelect = { suggestion -> leaveGoal { onGoalChange(suggestion) } })
-        }
+                .padding(top = HeaderTopPadding),
+        )
         StatusBarScrim()
         GenerateFooter(
             unavailable = unavailable,
+            overContent = { order.goalFirst },
             onGenerate = { leaveGoal(onGenerate) },
             onOpenRuntime = { leaveGoal(onOpenRuntime) },
             contentPadding = contentPadding,
@@ -227,12 +272,77 @@ fun TodayScreen(
     }
 }
 
+/**
+ * Where [TodayFlow] put the goal, decided in layout. The screen reads it when the goal takes
+ * focus, and the footer while drawing: with the goal first, content runs on under the footer.
+ */
+@Stable
+private class FlowOrder {
+    var goalFirst by mutableStateOf(false)
+}
+
+/**
+ * The header, then the night's signals and the day's goal, scrolling in [modifier]. The goal
+ * comes last, as the flow reads, while all of it, down to the suggestions, fits above the
+ * footer's fade at rest ([room] for the viewport's height, give or take the fade's clear top).
+ * When it doesn't (a shorter phone, larger text, landscape), the goal moves up under the
+ * header: it stays in view, and a signal's card, not a lone section label, runs under the fade.
+ * The order is kept while [hold] (the keyboard is up), and only the placement changes, so the
+ * goal field keeps its text and focus when the order flips. [endSpace] follows the content
+ * for the footer.
+ */
+@Composable
+private fun TodayFlow(
+    order: FlowOrder,
+    room: Density.(viewport: Int) -> Int,
+    hold: Density.() -> Boolean,
+    endSpace: (goalFirst: Boolean) -> Dp,
+    header: @Composable () -> Unit,
+    signals: @Composable () -> Unit,
+    goal: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // The viewport's height, as it reaches the scroll container. Written and read in the same
+    // measure pass of this node, so it needn't be state.
+    val viewport = remember { IntArray(1) }
+    val viewportModifier = Modifier.layout { measurable, constraints ->
+        viewport[0] = constraints.maxHeight
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+    Layout(contents = listOf(header, signals, goal), modifier = viewportModifier.then(modifier)) { (headerSlot, signalsSlot, goalSlot), constraints ->
+        val blockConstraints = constraints.copy(minWidth = constraints.maxWidth, minHeight = 0)
+        val headerBlock = headerSlot.single().measure(blockConstraints)
+        val signalsBlock = signalsSlot.single().measure(blockConstraints)
+        val goalBlock = goalSlot.single().measure(blockConstraints)
+        val sectionGap = WellnessSpacing.SectionGap.roundToPx()
+        // The suggestions' touch targets reach below the chips; the flow ends at the chips.
+        val chipInset = ChipTargetInset.roundToPx()
+        var goalFirst = Snapshot.withoutReadObservation { order.goalFirst }
+        if (!hold()) {
+            val flow = headerBlock.height + sectionGap + signalsBlock.height + sectionGap + goalBlock.height - chipInset
+            goalFirst = flow > room(viewport[0]) + FadeClearance.roundToPx()
+            if (goalFirst != Snapshot.withoutReadObservation { order.goalFirst }) order.goalFirst = goalFirst
+        }
+        val blocks = if (goalFirst) listOf(headerBlock, goalBlock, signalsBlock) else listOf(headerBlock, signalsBlock, goalBlock)
+        val gaps = if (goalFirst) listOf(sectionGap, sectionGap - chipInset) else listOf(sectionGap, sectionGap)
+        val height = blocks.sumOf { it.height } + gaps.sum() + endSpace(goalFirst).roundToPx()
+        layout(constraints.maxWidth, height.coerceAtLeast(constraints.minHeight)) {
+            var y = 0
+            blocks.forEachIndexed { index, block ->
+                block.placeRelative(0, y)
+                y += block.height + gaps.getOrElse(index) { 0 }
+            }
+        }
+    }
+}
+
 /** The date and the On-device pill on one line, then the greeting with the orb rising after it. */
 @Composable
-private fun Header(runtime: RuntimeStatus, onOpenRuntime: () -> Unit) {
+private fun Header(runtime: RuntimeStatus, onOpenRuntime: () -> Unit, modifier: Modifier = Modifier) {
     val clock = LocalWellnessClock.current
     val now = clock.now()
-    Column {
+    Column(modifier) {
         // As tall as the visible pill; its 48 dp touch target overhangs the row.
         Row(Modifier.height(PillHeight), verticalAlignment = Alignment.CenterVertically) {
             Eyebrow(text = fullDateLabel(now, clock), modifier = Modifier.weight(1f))
@@ -620,6 +730,7 @@ private fun GoalSuggestions(goal: String, onSelect: (String) -> Unit) {
 @Composable
 private fun GenerateFooter(
     unavailable: Boolean,
+    overContent: () -> Boolean,
     onGenerate: () -> Unit,
     onOpenRuntime: () -> Unit,
     contentPadding: PaddingValues,
@@ -653,25 +764,33 @@ private fun GenerateFooter(
             enter = fadeIn(tween(WellnessMotion.SmallMillis)),
             exit = fadeOut(tween(WellnessMotion.SmallMillis)),
         ) {
-            RuntimeNotice(onOpenRuntime)
+            RuntimeNotice(onOpenRuntime, overContent)
         }
     }
 }
 
 /**
  * "The on-device service isn’t answering." with a Details action that opens the runtime
- * sheet, across the footer's width. Its backing, clear across the fade's top and then solid,
- * keeps content scrolling under the footer from running behind the words.
+ * sheet, across the footer's width. Its backing keeps content scrolling under the footer from
+ * running behind the words: clear across the fade's top and then solid, so what rests above
+ * the fade stays as it is. When content runs on under the footer at rest ([overContent]), the
+ * backing fades in above the notice instead, over the fade's full height, as if the footer had
+ * grown, so that content fades out softly rather than being cut.
  */
 @Composable
-private fun RuntimeNotice(onOpenRuntime: () -> Unit) {
+private fun RuntimeNotice(onOpenRuntime: () -> Unit, overContent: () -> Boolean) {
     val bg = WellnessTheme.colors.bg
     Row(
         Modifier
             .fillMaxWidth()
             .drawWithCache {
-                val backing = canvasFade(bg, startY = FadeClearance.toPx(), endY = (FadeClearance + NoticeFeather).toPx())
-                onDrawBehind { drawRect(backing) }
+                val above = FooterFade.toPx()
+                val backing = if (overContent()) {
+                    canvasFade(bg, startY = -above, endY = 0f)
+                } else {
+                    canvasFade(bg, startY = FadeClearance.toPx(), endY = (FadeClearance + NoticeFeather).toPx())
+                }
+                onDrawBehind { drawRect(backing, topLeft = Offset(0f, -above), size = Size(size.width, size.height + above)) }
             }
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .padding(horizontal = WellnessSpacing.ScreenMargin)
@@ -781,14 +900,17 @@ private val LabelGap = 2.dp
 private const val MaxLabelLines = 2
 private val UnitGap = 4.dp
 
+// A SuggestionChip's 48 dp touch target reaches 6 dp past its 36 dp pill, above and below.
+private val ChipTargetInset = 6.dp
+
 // The footer: a fade above the 60 dp button, and a gap between the button and the tab bar.
 private val FooterFade = 44.dp
 private val FooterGap = 16.dp
 private val GenerateButtonHeight = 60.dp
 private val FooterReserve = FooterFade + GenerateButtonHeight + FooterGap
 
-// The top of the footer's fade, still too faint to see: the unavailable notice's backing
-// starts below it, leaving whatever rests there (the chips' shadows) as it is.
+// The top of the footer's fade, still too faint to see: the content may rest inside it, and
+// the unavailable notice's backing starts below it.
 private val FadeClearance = 4.dp
 
 // The unavailable notice fills the fade's height, which its Details action takes as its
