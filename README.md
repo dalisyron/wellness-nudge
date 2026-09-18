@@ -27,17 +27,37 @@ your feedback all live on the phone.
 ## Highlights
 
 - **On-device inference.** SmolLM2-360M-Instruct (GGUF, Q8_0) is served by mimik's mILM through an OpenAI-compatible API. After the one-time model download the app works in airplane mode.
-- **Grounded, not generic.** Code turns the raw metrics into plain language and a computed summary ("short sleep, low HRV"), and a worked example matched to the goal shows the 360M model the shape of a good nudge. Outputs passing a grounding rubric (cites a real input number, invents none, two sentences, one sensible action) went from **1% to 100%** of evaluation runs ([details](#making-a-360m-model-useful)).
+- **Grounded, not generic.** Code turns the raw metrics into plain language and a computed summary ("short sleep, low HRV"), and a worked example matched to the goal shows the 360M model the shape of a good nudge. Outputs passing a grounding rubric (cites a real input number, invents none, two sentences, one sensible action) went from **1% to 99%** of evaluation runs ([details](#making-a-360m-model-useful)).
 - **A real design system.** "Daybreak" is a dark-first luminous UI with a matching light theme, bundled Newsreader and Manrope type, and an animated Canvas-drawn orb that stands for the AI. Motion respects reduced-motion settings, and every screen state is covered by **63 Paparazzi snapshot tests** in both themes (126 images), alongside 65 JVM unit tests.
 - **Full stack on one device.** The app starts the embedded runtime, signs in, deploys two microservices, downloads the models, then uses its own API.
 
 ## Screens
 
-<img src="docs/media/screens-dark.png" alt="Today, Thinking on-device, Your nudge, Journal, and Running on this phone" />
+<img src="docs/media/screens-flow.png" alt="Today, Thinking on-device, and the finished nudge" />
+
+<img src="docs/media/screens-library.png" alt="Journal, For you, and the Running on this phone sheet" />
+
+<table><tr>
+<td width="300"><img src="docs/media/tour.gif" width="280" alt="Tour: the Journal, a saved nudge, For you, and the runtime sheet" /></td>
+<td>
+
+**Journal** keeps every nudge on the phone, grouped by day, with the goal and your rating; filters narrow it to helpful or unrated ones.
+
+**For you** gathers the nudges you rated helpful, grouped by the goals you've been focusing on lately, so the advice that worked is easy to find again.
+
+**Running on this phone**, behind the *On-device* pill, shows the live stack: the mimOE runtime, the wellness-nudge mim, mILM, both models and how many nudges are stored.
+
+<sub>Captured at 1.5× speed.</sub>
+</td>
+</tr></table>
 
 <img src="docs/media/screens-more.png" alt="First-run setup, setup complete, editing HRV, and a saved nudge" />
 
-<sub>Every screenshot above is a device capture from a Pixel 9 Pro XL with the status bar cropped out; all nudges were generated on the phone.</sub>
+### Light theme
+
+<img src="docs/media/screens-light.png" alt="Today, a saved nudge, and For you in the light theme" />
+
+<sub>Every screenshot and animation is a device capture from a Pixel 9 Pro XL with the status bar cropped out; all nudges were generated on the phone.</sub>
 
 ### First run
 
