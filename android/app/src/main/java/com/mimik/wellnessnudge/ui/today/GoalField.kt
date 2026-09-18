@@ -2,6 +2,7 @@ package com.mimik.wellnessnudge.ui.today
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,10 +38,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -57,8 +63,8 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
 
 /**
- * The goal input: one line on a raised field whose border turns accent while it has focus,
- * led by a quiet flag and ended by a clear button once there is text. At rest, a goal too
+ * The goal input: one line on a raised field whose border turns accent, inside a soft accent
+ * ring, while it has focus, led by a quiet flag and ended by a clear button once there is text. At rest, a goal too
  * long for the line ends in an ellipsis. The keyboard's Done key clears focus.
  */
 @Composable
@@ -73,7 +79,8 @@ internal fun GoalField(
     val focusManager = LocalFocusManager.current
     var focused by remember { mutableStateOf(false) }
     val borderTarget = if (focused) colors.accent else colors.controlBorder
-    val border = if (rememberAnimationsEnabled()) {
+    val animate = rememberAnimationsEnabled()
+    val border = if (animate) {
         animateColorAsState(
             targetValue = borderTarget,
             animationSpec = tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing),
@@ -82,6 +89,14 @@ internal fun GoalField(
     } else {
         borderTarget
     }
+    // A soft ring around the field while it has focus, so it reads as the active input.
+    val ringTarget = if (focused) 1f else 0f
+    val ring = if (animate) {
+        animateFloatAsState(ringTarget, tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing), label = "goalRing").value
+    } else {
+        ringTarget
+    }
+    val ringColor = colors.accent.copy(alpha = if (colors.isDark) 0.24f else 0.16f)
     // The field's own copy keeps the cursor and the keyboard's composing text. The line scrolls
     // to its cursor: outside focus the cursor rests at the start, under the resting text below;
     // focus moves it to the end, ready to add to (a tap then moves it where it lands).
@@ -118,10 +133,24 @@ internal fun GoalField(
             Row(
                 Modifier
                     .heightIn(min = FieldHeight)
+                    .drawBehind {
+                        if (ring > 0f) {
+                            // Just outside the field, following its corners.
+                            val width = RingWidth.toPx()
+                            val radius = FieldRadius.toPx() + width / 2f
+                            drawRoundRect(
+                                color = ringColor.copy(alpha = ringColor.alpha * ring),
+                                topLeft = Offset(-width / 2f, -width / 2f),
+                                size = Size(size.width + width, size.height + width),
+                                cornerRadius = CornerRadius(radius),
+                                style = Stroke(width),
+                            )
+                        }
+                    }
                     .paperShadow(colors, WellnessShapes.Input, elevation = 3.dp)
                     .clip(WellnessShapes.Input)
                     .background(colors.controlFill)
-                    .border(1.dp, border, WellnessShapes.Input)
+                    .border(if (focused) FocusedBorder else 1.dp, border, WellnessShapes.Input)
                     .padding(start = 18.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -193,4 +222,7 @@ private fun ClearButton(visible: Boolean, onClick: () -> Unit) {
 }
 
 private val FieldHeight = 56.dp
+private val FieldRadius = 20.dp
+private val FocusedBorder = 1.5.dp
+private val RingWidth = 3.dp
 private val ClearButtonSize = 48.dp

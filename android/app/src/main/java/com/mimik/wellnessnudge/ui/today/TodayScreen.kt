@@ -1,28 +1,43 @@
 package com.mimik.wellnessnudge.ui.today
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
@@ -51,21 +66,32 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mimik.wellnessnudge.ui.components.DaybreakBackground
 import com.mimik.wellnessnudge.ui.components.Eyebrow
 import com.mimik.wellnessnudge.ui.components.GradientButton
 import com.mimik.wellnessnudge.ui.components.IconBadge
+import com.mimik.wellnessnudge.ui.components.LinearMeter
 import com.mimik.wellnessnudge.ui.components.MetricTile
 import com.mimik.wellnessnudge.ui.components.NudgeOrb
 import com.mimik.wellnessnudge.ui.components.OnDevicePill
@@ -76,6 +102,7 @@ import com.mimik.wellnessnudge.ui.components.SleepStagesBar
 import com.mimik.wellnessnudge.ui.components.SuggestionChip
 import com.mimik.wellnessnudge.ui.components.TextAction
 import com.mimik.wellnessnudge.ui.components.WellnessCard
+import com.mimik.wellnessnudge.ui.components.horizontalScrollFades
 import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
 import com.mimik.wellnessnudge.ui.format.formatSteps
 import com.mimik.wellnessnudge.ui.format.fullDateLabel
@@ -116,6 +143,7 @@ fun TodayScreen(
 ) {
     val focusManager = LocalFocusManager.current
     var goalFocused by remember { mutableStateOf(false) }
+    val unavailable = state.runtime == RuntimeStatus.Error
 
     // Every action away from the goal puts the keyboard away first.
     fun leaveGoal(then: () -> Unit) {
@@ -140,7 +168,9 @@ fun TodayScreen(
                 .verticalScroll(scrollState)
                 .padding(contentPadding)
                 .statusBarsPadding()
-                .padding(top = HeaderTopPadding, bottom = FooterHeight),
+                // Clear of a side navigation bar and the camera cutout in landscape.
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .padding(top = HeaderTopPadding, bottom = if (unavailable) FooterHeight + NoticeHeight else FooterHeight),
         ) {
             Column(Modifier.padding(horizontal = WellnessSpacing.ScreenMargin)) {
                 Header(runtime = state.runtime, onOpenRuntime = { leaveGoal(onOpenRuntime) })
@@ -156,9 +186,9 @@ fun TodayScreen(
                 Spacer(Modifier.height(WellnessSpacing.SectionGap))
                 SectionHeader(title = "Body")
                 Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
-                BodyTiles(metrics = state.metrics, onOpenEditor = { editor -> leaveGoal { onOpenEditor(editor) } })
+                BodySection(metrics = state.metrics, onOpenEditor = { editor -> leaveGoal { onOpenEditor(editor) } })
                 Spacer(Modifier.height(WellnessSpacing.SectionGap))
-                SectionHeader(title = "Today's focus")
+                SectionHeader(title = "Today’s focus")
                 Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
                 GoalField(
                     value = state.goal,
@@ -173,7 +203,9 @@ fun TodayScreen(
         }
         StatusBarScrim()
         GenerateFooter(
+            unavailable = unavailable,
             onGenerate = { leaveGoal(onGenerate) },
+            onOpenRuntime = { leaveGoal(onOpenRuntime) },
             contentPadding = contentPadding,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -277,59 +309,225 @@ private fun SleepCard(metrics: DayMetrics, onClick: () -> Unit) {
     }
 }
 
-/** Resting HR and HRV side by side, then yesterday's steps across the full width. */
+/** One body signal as the Body section shows it; [shown] is its (animating) value on screen. */
+private class BodyStat(
+    val spec: BodySpec,
+    val shown: String,
+    val spoken: String,
+    val color: Color,
+    val progress: Float,
+)
+
+/** A body signal's fixed parts, and its widest possible value, which sizes the card's columns. */
+private enum class BodySpec(
+    val editor: TodayEditor,
+    val label: String,
+    val tileLabel: String,
+    val unit: String?,
+    val widest: String,
+    val caption: String?,
+) {
+    RestingHr(TodayEditor.RestingHr, "Resting HR", "Resting HR", "bpm", "110", null),
+    Hrv(TodayEditor.Hrv, "HRV", "HRV", "ms", "120", null),
+    Steps(TodayEditor.Steps, "Steps", "Steps yesterday", null, formatSteps(25_000), "of 10k"),
+}
+
+/**
+ * Resting HR, HRV and yesterday's steps: side by side in one card, so the goal below stays
+ * in view above the Generate button. When the columns can't hold every value the signals can
+ * take (large text, a narrow screen), they become tiles: two side by side, then steps.
+ */
 @Composable
-private fun BodyTiles(metrics: DayMetrics, onOpenEditor: (TodayEditor) -> Unit) {
+private fun BodySection(metrics: DayMetrics, onOpenEditor: (TodayEditor) -> Unit) {
     val colors = WellnessTheme.colors
     val restingHr by animateFloatAsState(metrics.restingHr, valueChange(), label = "restingHr")
     val hrv by animateFloatAsState(metrics.hrvMs, valueChange(), label = "hrv")
     val steps by animateFloatAsState(metrics.steps, valueChange(), label = "steps")
-    Column(verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-            MetricTile(
-                icon = Icons.Rounded.Favorite,
-                label = "Resting HR",
-                value = restingHr.roundToInt().toString(),
-                unit = "bpm",
-                color = colors.restingHr,
-                modifier = Modifier.weight(1f),
-                onClick = { onOpenEditor(TodayEditor.RestingHr) },
-                meterProgress = Metric.RestingHr.fraction(metrics.restingHr),
-            )
-            MetricTile(
-                icon = Icons.Rounded.MonitorHeart,
-                label = "HRV",
-                value = hrv.roundToInt().toString(),
-                unit = "ms",
-                color = colors.hrv,
-                modifier = Modifier.weight(1f),
-                onClick = { onOpenEditor(TodayEditor.Hrv) },
-                meterProgress = Metric.Hrv.fraction(metrics.hrvMs),
-            )
-        }
-        MetricTile(
-            icon = Icons.AutoMirrored.Rounded.DirectionsWalk,
-            label = "Steps yesterday",
-            value = formatSteps(steps.roundToInt()),
-            unit = null,
+    val stats = listOf(
+        BodyStat(
+            BodySpec.RestingHr,
+            shown = restingHr.roundToInt().toString(),
+            spoken = "Resting heart rate, ${metrics.restingHr.roundToInt()} beats per minute",
+            color = colors.restingHr,
+            progress = Metric.RestingHr.fraction(metrics.restingHr),
+        ),
+        BodyStat(
+            BodySpec.Hrv,
+            shown = hrv.roundToInt().toString(),
+            spoken = "Heart rate variability, ${metrics.hrvMs.roundToInt()} milliseconds",
+            color = colors.hrv,
+            progress = Metric.Hrv.fraction(metrics.hrvMs),
+        ),
+        BodyStat(
+            BodySpec.Steps,
+            shown = formatSteps(steps.roundToInt()),
+            spoken = "Steps yesterday, ${formatSteps(metrics.steps.roundToInt())} of 10,000",
             color = colors.steps,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = { onOpenEditor(TodayEditor.Steps) },
-            meterProgress = metrics.steps / StepsGoal,
-            meterCaption = "of 10k",
-            shape = WellnessShapes.Card,
-        )
+            progress = metrics.steps / StepsGoal,
+        ),
+    )
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (bodyColumnsFit(maxWidth)) {
+            BodyCard(stats, onOpenEditor)
+        } else {
+            BodyTiles(stats, onOpenEditor)
+        }
     }
 }
 
-/** Goals to start from, in a row that scrolls edge to edge; one is selected while it is the goal. */
+/** Whether every signal's widest value and its label fit a column of the Body card [width] wide. */
+@Composable
+private fun bodyColumnsFit(width: Dp): Boolean {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val type = WellnessTheme.type
+    val labelStyle = MaterialTheme.typography.labelMedium
+    return remember(width, density, measurer, type, labelStyle) {
+        with(density) {
+            val columns = BodySpec.entries.size
+            val column = (width - BodyInset * 2 - DividerWidth * (columns - 1)) / columns - BodyGap * 2
+            fun measure(text: String, style: TextStyle): Dp =
+                measurer.measure(text, style, softWrap = false, maxLines = 1).size.width.toDp()
+            BodySpec.entries.all { spec ->
+                val value = measure(spec.widest, type.metricM) + (spec.unit?.let { UnitGap + measure(it, type.metricUnit) } ?: 0.dp)
+                val header = DotSize + DotGap + measure(spec.label, labelStyle) + DotGap + EditGlyphSize
+                value <= column && header <= column
+            }
+        }
+    }
+}
+
+/** The three signals in columns between hairlines; each column opens its own editor. */
+@Composable
+private fun BodyCard(stats: List<BodyStat>, onOpenEditor: (TodayEditor) -> Unit) {
+    val hairline = WellnessTheme.colors.hairline
+    WellnessCard(Modifier.fillMaxWidth(), contentPadding = 0.dp) {
+        Row(
+            Modifier
+                .height(IntrinsicSize.Min)
+                .padding(horizontal = BodyInset),
+        ) {
+            stats.forEachIndexed { index, stat ->
+                if (index > 0) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .padding(vertical = WellnessSpacing.CardPadding)
+                            .width(DividerWidth)
+                            .background(hairline),
+                    )
+                }
+                BodyColumn(stat, onClick = { onOpenEditor(stat.spec.editor) }, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BodyColumn(stat: BodyStat, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = WellnessTheme.colors
+    val type = WellnessTheme.type
+    Column(
+        modifier
+            .fillMaxHeight()
+            .clickable(onClickLabel = "Edit", role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics { contentDescription = stat.spoken }
+            .padding(horizontal = BodyGap, vertical = WellnessSpacing.CardPadding),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(DotSize)
+                    .background(stat.color, CircleShape),
+            )
+            Spacer(Modifier.width(DotGap))
+            Text(
+                text = stat.spec.label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.textDisabled, modifier = Modifier.size(EditGlyphSize))
+        }
+        Spacer(Modifier.height(12.dp))
+        Row {
+            Text(
+                text = stat.shown,
+                modifier = Modifier.alignByBaseline(),
+                style = type.metricM,
+                color = colors.textPrimary,
+                maxLines = 1,
+            )
+            stat.spec.unit?.let { unit ->
+                Spacer(Modifier.width(UnitGap))
+                Text(
+                    text = unit,
+                    modifier = Modifier.alignByBaseline(),
+                    style = type.metricUnit,
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        LinearMeter(stat.progress, stat.color)
+        stat.spec.caption?.let { caption ->
+            Spacer(Modifier.height(6.dp))
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary, maxLines = 1)
+        }
+    }
+}
+
+/** The signals as tiles, for large text: resting HR and HRV side by side, then steps across the full width. */
+@Composable
+private fun BodyTiles(stats: List<BodyStat>, onOpenEditor: (TodayEditor) -> Unit) {
+    val (restingHr, hrv, steps) = stats
+    Column(verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
+            BodyTile(restingHr, Icons.Rounded.Favorite, onOpenEditor, Modifier.weight(1f))
+            BodyTile(hrv, Icons.Rounded.MonitorHeart, onOpenEditor, Modifier.weight(1f))
+        }
+        BodyTile(steps, Icons.AutoMirrored.Rounded.DirectionsWalk, onOpenEditor, Modifier.fillMaxWidth(), WellnessShapes.Card)
+    }
+}
+
+@Composable
+private fun BodyTile(
+    stat: BodyStat,
+    icon: ImageVector,
+    onOpenEditor: (TodayEditor) -> Unit,
+    modifier: Modifier = Modifier,
+    shape: Shape = WellnessShapes.Tile,
+) {
+    MetricTile(
+        icon = icon,
+        label = stat.spec.tileLabel,
+        value = stat.shown,
+        unit = stat.spec.unit,
+        color = stat.color,
+        modifier = modifier,
+        onClick = { onOpenEditor(stat.spec.editor) },
+        meterProgress = stat.progress,
+        meterCaption = stat.spec.caption,
+        shape = shape,
+    )
+}
+
+/**
+ * Goals to start from, in a row that scrolls edge to edge and fades out at the screen edges
+ * while there is more that way; one is selected while it is the goal.
+ */
 @Composable
 private fun GoalSuggestions(goal: String, onSelect: (String) -> Unit) {
     val current = goal.trim()
+    val scroll = rememberScrollState()
     Row(
         Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            .horizontalScrollFades(scroll)
+            .horizontalScroll(scroll)
             .padding(horizontal = WellnessSpacing.ScreenMargin)
             .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -343,15 +541,19 @@ private fun GoalSuggestions(goal: String, onSelect: (String) -> Unit) {
 /**
  * The sticky call to action. A scrim of the canvas color fades in above the button and
  * stays solid down behind the tab bar (or the keyboard), so content scrolls away cleanly.
+ * While the on-device service doesn't answer, a line above the button says so, with the way
+ * to the runtime details; the button stays live, as the service may be back by then.
  */
 @Composable
 private fun GenerateFooter(
+    unavailable: Boolean,
     onGenerate: () -> Unit,
+    onOpenRuntime: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     val bg = WellnessTheme.colors.bg
-    Box(
+    Column(
         modifier
             .fillMaxWidth()
             .drawWithCache {
@@ -368,14 +570,39 @@ private fun GenerateFooter(
                 onDrawBehind { drawRect(scrim) }
             }
             .padding(contentPadding)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .padding(
                 start = WellnessSpacing.ScreenMargin,
                 end = WellnessSpacing.ScreenMargin,
                 top = FooterFade,
                 bottom = FooterGap,
             ),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        AnimatedVisibility(
+            visible = unavailable,
+            enter = fadeIn(tween(WellnessMotion.SmallMillis)) + expandVertically(tween(WellnessMotion.SmallMillis)),
+            exit = fadeOut(tween(WellnessMotion.SmallMillis)) + shrinkVertically(tween(WellnessMotion.SmallMillis)),
+        ) {
+            RuntimeNotice(onOpenRuntime)
+        }
         GradientButton(text = "Generate nudge", onClick = onGenerate, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/** "The on-device service isn’t answering." with a Details action that opens the runtime sheet. */
+@Composable
+private fun RuntimeNotice(onOpenRuntime: () -> Unit) {
+    Row(Modifier.height(NoticeHeight), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "The on-device service isn’t answering.",
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+            style = MaterialTheme.typography.bodySmall,
+            color = WellnessTheme.colors.dangerText,
+        )
+        TextAction(text = "Details", icon = null, onClick = onOpenRuntime)
     }
 }
 
@@ -403,8 +630,8 @@ private fun StatusBarScrim() {
 
 private fun valueChange() = tween<Float>(WellnessMotion.ValueMillis, easing = WellnessMotion.Easing)
 
-/** 6.5 → "6 hours 30 minutes asleep", as TalkBack reads the sleep card. */
-internal fun spokenSleep(hours: Float): String {
+/** 6.5 → "6 hours 30 minutes", as TalkBack reads a sleep duration. */
+internal fun spokenDuration(hours: Float): String {
     val minutes = (hours * 60).roundToInt().coerceAtLeast(0)
     val h = minutes / 60
     val m = minutes % 60
@@ -413,15 +640,19 @@ internal fun spokenSleep(hours: Float): String {
         if (h > 0) add(count(h, "hour"))
         if (m > 0 || h == 0) add(count(m, "minute"))
     }
-    return parts.joinToString(" ") + " asleep"
+    return parts.joinToString(" ")
 }
 
+/** 6.5 → "6 hours 30 minutes asleep", as TalkBack reads the sleep card. */
+internal fun spokenSleep(hours: Float): String = spokenDuration(hours) + " asleep"
+
+// Each maps to a goal category the mim recognizes, so a nudge from a chip joins For you.
 private val Suggestions = listOf(
     "Sleep better tonight",
     "Lower stress",
-    "More energy",
+    "Feel less tired",
     "Recover from training",
-    "Move more today",
+    "Exercise more today",
 )
 
 private const val StepsGoal = 10_000f
@@ -434,10 +665,23 @@ private val HeaderTopPadding = 12.dp
 private val PillHeight = 36.dp
 private val StatusBarFade = 16.dp
 
+// The Body card: 16 dp either side of the hairlines between columns, and the card's 20 dp
+// padding at the outer edges (4 dp of inset plus a column's 16).
+private val BodyGap = 16.dp
+private val BodyInset = WellnessSpacing.CardPadding - BodyGap
+private val DividerWidth = 1.dp
+private val DotSize = 6.dp
+private val DotGap = 6.dp
+private val EditGlyphSize = 14.dp
+private val UnitGap = 4.dp
+
 // The footer: a fade above the 60 dp button, and a gap between the button and the tab bar.
 private val FooterFade = 44.dp
 private val FooterGap = 16.dp
 private val GenerateButtonHeight = 60.dp
+
+// The unavailable notice's row: its Details action keeps a 48 dp touch target.
+private val NoticeHeight = 48.dp
 
 // Room at the end of the content. The last suggestions stop in the top quarter of the fade,
 // where it is still too faint to see (the chips' touch targets reach lower than the pills).

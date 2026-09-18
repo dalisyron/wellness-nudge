@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import com.mimik.wellnessnudge.ui.components.FloatingNavBar
+import com.mimik.wellnessnudge.ui.components.RuntimeStatus
 import com.mimik.wellnessnudge.ui.components.WellnessBottomSheetFrame
 import com.mimik.wellnessnudge.ui.navigation.TopLevelTab
 import com.mimik.wellnessnudge.ui.today.TodayEditor
@@ -26,6 +27,7 @@ class TodayScreenTest {
     @get:Rule
     val paparazzi = wellnessPaparazzi()
 
+    /** At rest, no goal yet: the whole flow, down to the goal's placeholder and suggestions, sits above the button. */
     @Test
     fun default() = paparazzi.snapshotThemes("today") { Today(TodayPreviewData.default) }
 
@@ -33,6 +35,18 @@ class TodayScreenTest {
     @Test
     fun sampleDay() = paparazzi.snapshotThemes("today_sample_day") {
         Today(TodayPreviewData.sampleDay, scrolledToEnd = true)
+    }
+
+    /** The runtime hasn't answered yet. */
+    @Test
+    fun starting() = paparazzi.snapshotThemes("today_starting") {
+        Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Starting))
+    }
+
+    /** The runtime doesn't answer: a line above the button says so, with the way to the details. */
+    @Test
+    fun unavailable() = paparazzi.snapshotThemes("today_unavailable") {
+        Today(TodayPreviewData.default.copy(runtime = RuntimeStatus.Error))
     }
 
     @Test
@@ -50,7 +64,7 @@ class TodayScreenTest {
         Today(TodayPreviewData.default, editor = TodayEditor.Hrv)
     }
 
-    /** Text at 130%, on a frame tall enough for the whole screen: nothing may clip. */
+    /** Text at 130%, on a frame tall enough for the whole screen: nothing may clip, and the body signals turn into tiles. */
     @Test
     fun largeText() {
         paparazzi.unsafeUpdateConfig(deviceConfig = Pixel9ProXL.copy(fontScale = 1.3f, screenHeight = 2640))

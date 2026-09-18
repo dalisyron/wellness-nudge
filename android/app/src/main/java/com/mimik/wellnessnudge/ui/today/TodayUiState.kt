@@ -67,7 +67,7 @@ enum class Metric(val range: ClosedFloatingPointRange<Float>, val step: Float) {
     /** [value] on the nearest step, within the range. */
     fun snap(value: Float): Float = (range.start + stepsFromStart(value).roundToInt() * step).coerceIn(range)
 
-    /** One step up. A value between steps (a sample day's 5.2 h) moves to the next step above it. */
+    /** One step up. A value between steps (float noise, 6.2500005 h) moves to the next step above it. */
     fun stepUp(value: Float): Float = (range.start + (floor(stepsFromStart(value) + Tolerance) + 1) * step).coerceIn(range)
 
     /** One step down, to the previous step below a value between steps. */
@@ -98,11 +98,15 @@ fun TodayUiState.toNudgeRequest(): NudgeRequest = NudgeRequest(
     userGoal = goal.trim().ifEmpty { null },
 )
 
+/**
+ * The scenario's signals on the sliders' steps (5.2 h becomes 5.25 h), so a slider never sits
+ * between stops showing one value while its thumb stands for another.
+ */
 internal fun MockNudgeInput.toDayMetrics() = DayMetrics(
-    sleepHours = sleepHours,
-    deepSleepPct = deepSleepPct,
-    remSleepPct = remSleepPct,
-    restingHr = restingHR,
-    hrvMs = hrvMs,
-    steps = stepsYesterday,
+    sleepHours = Metric.SleepHours.snap(sleepHours),
+    deepSleepPct = Metric.DeepSleep.snap(deepSleepPct),
+    remSleepPct = Metric.RemSleep.snap(remSleepPct),
+    restingHr = Metric.RestingHr.snap(restingHR),
+    hrvMs = Metric.Hrv.snap(hrvMs),
+    steps = Metric.Steps.snap(stepsYesterday),
 )

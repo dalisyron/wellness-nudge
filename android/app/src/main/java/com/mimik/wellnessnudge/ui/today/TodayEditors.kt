@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Add
@@ -135,11 +137,13 @@ private fun SleepEditor(
 ) {
     val colors = WellnessTheme.colors
     EditorColumn {
-        EditorTitle(icon = Icons.Rounded.Bedtime, color = colors.sleep, title = "Last night's sleep")
+        EditorTitle(icon = Icons.Rounded.Bedtime, color = colors.sleep, title = "Last night’s sleep")
         Spacer(Modifier.height(28.dp))
         SliderRow(
             label = "Total sleep",
             value = formatSleep(metrics.sleepHours),
+            // TalkBack would read the "h" and "m" of "6h 30m" as letters.
+            spokenValue = spokenDuration(metrics.sleepHours),
             metric = Metric.SleepHours,
             current = metrics.sleepHours,
             color = colors.sleep,
@@ -229,11 +233,13 @@ private fun MetricEditor(
     }
 }
 
+/** The editor's content, scrolling when the sheet is shorter than it, e.g. in landscape. */
 @Composable
 private fun EditorColumn(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = WellnessSpacing.ScreenMargin)
             .padding(bottom = 16.dp),
         content = content,
@@ -254,7 +260,7 @@ private fun EditorTitle(icon: ImageVector, color: Color, title: String) {
     }
 }
 
-/** A label with the current value at its end, over an [EditorSlider]. */
+/** A label with the current value at its end, over an [EditorSlider]; TalkBack reads [spokenValue]. */
 @Composable
 private fun SliderRow(
     label: String,
@@ -264,6 +270,7 @@ private fun SliderRow(
     color: Color,
     name: String,
     onMetricChange: (Metric, Float) -> Unit,
+    spokenValue: String = value,
 ) {
     val colors = WellnessTheme.colors
     Column {
@@ -289,7 +296,7 @@ private fun SliderRow(
             current = current,
             color = color,
             name = name,
-            valueDescription = value,
+            valueDescription = spokenValue,
             onMetricChange = onMetricChange,
         )
     }

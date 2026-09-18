@@ -111,7 +111,14 @@ fun MainScaffold(
     }
 
     if (runtimeSheetOpen) {
-        RuntimeSheetRoute(loadRuntimeInfo = loadRuntimeInfo, onDismiss = { runtimeSheetOpen = false })
+        RuntimeSheetRoute(
+            loadRuntimeInfo = loadRuntimeInfo,
+            onDismiss = {
+                runtimeSheetOpen = false
+                // The sheet may have shown a change: bring the header pill up to date.
+                repository.refreshHealth()
+            },
+        )
     }
 }
 
@@ -205,8 +212,8 @@ private fun WellnessNavHost(
             )
         }
         nudge(Routes.NUDGE_NEW) { entry ->
-            // Nothing to show (e.g. the stack came back after process death with a fresh
-            // repository, or the generation was reset): leave rather than render a blank screen.
+            // Nothing was generated: the stack came back after process death with a fresh
+            // repository. Leave rather than render a blank screen.
             val generation by repository.generation.collectAsStateWithLifecycle()
             if (generation is GenerationState.Idle) {
                 LaunchedEffect(Unit) { back() }
