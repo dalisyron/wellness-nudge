@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Themed-icon silhouette: the rising orb, its rays and the horizon arc. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M42.53,64.22 A17.5,17.5 0 1,1 65.47,64.22 A92,92 0 0,0 42.53,64.22 Z" />
+    <path
+        android:pathData="M54,28.5 L54,23.5 M67.85,33.27 L70.93,29.33 M40.15,33.27 L37.07,29.33 M75.63,44.8 L80.43,43.42 M32.37,44.8 L27.57,43.42"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M20,70.01 A92,92 0 0,1 88,70.01"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round" />
+</vector>
