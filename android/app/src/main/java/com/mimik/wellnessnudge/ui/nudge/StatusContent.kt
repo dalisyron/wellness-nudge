@@ -21,9 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
@@ -37,8 +40,10 @@ import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
 /**
- * Something went wrong: the orb, gone still, over a title and a friendly explanation, with
- * Back and, when there is one, a way to [retry] (it gets the modifier that sizes it).
+ * Something went wrong: the orb, dimmed and unlit, over a title and a friendly explanation,
+ * with Back and, when there is one, a way to [retry] (it gets the modifier that sizes it).
+ * The title and explanation are read out as they arrive: TalkBack users were waiting on the
+ * model, with focus left on Back.
  */
 @Composable
 internal fun FailedContent(
@@ -49,7 +54,11 @@ internal fun FailedContent(
     retry: (@Composable (Modifier) -> Unit)?,
 ) {
     val colors = WellnessTheme.colors
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .semantics { paneTitle = title },
+    ) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -60,23 +69,30 @@ internal fun FailedContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            orb(FailedOrbSize, OrbMode.Still, Modifier)
-            // Clear of the halo, which spills a quarter of the orb's size.
+            orb(FailedOrbSize, OrbMode.Dimmed, Modifier)
+            // Room for where the halo was, a quarter of the orb's size.
             Spacer(Modifier.height(36.dp))
-            Text(
-                text = title,
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineLarge.copy(lineBreak = LineBreak.Heading),
-                color = colors.textPrimary,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyLarge.copy(lineBreak = LineBreak.Heading),
-                color = colors.textSecondary,
-                textAlign = TextAlign.Center,
-            )
+            Column(
+                Modifier.semantics(mergeDescendants = true) {
+                    heading()
+                    liveRegion = LiveRegionMode.Polite
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineLarge.copy(lineBreak = LineBreak.Heading),
+                    color = colors.textPrimary,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyLarge.copy(lineBreak = LineBreak.Heading),
+                    color = colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
         StageFooter {
             val back: @Composable (Modifier) -> Unit = { backModifier ->
@@ -106,8 +122,11 @@ internal fun LoadingContent() {
         Modifier
             .fillMaxSize()
             .padding(horizontal = WellnessSpacing.ScreenMargin)
-            .padding(top = 20.dp)
-            .clearAndSetSemantics { contentDescription = "Loading your nudge" },
+            .padding(top = WellnessSpacing.SectionGap)
+            .clearAndSetSemantics {
+                paneTitle = "Loading your nudge"
+                contentDescription = "Loading your nudge"
+            },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SkeletonBlock(Modifier.size(ResultOrbSize), CircleShape)
@@ -118,11 +137,11 @@ internal fun LoadingContent() {
                 SkeletonBlock(Modifier.size(width = 76.dp, height = 24.dp), WellnessShapes.Pill)
             }
         }
-        Spacer(Modifier.height(20.dp))
-        WellnessCard(Modifier.fillMaxWidth()) {
-            // Lines on the nudge's own 35 sp rhythm.
+        Spacer(Modifier.height(WellnessSpacing.ItemGap))
+        WellnessCard(Modifier.fillMaxWidth(), contentPadding = 24.dp) {
+            // Lines on the nudge's own 38 sp rhythm.
             listOf(1f, 1f, 1f, 0.92f, 0.46f).forEachIndexed { index, width ->
-                if (index > 0) Spacer(Modifier.height(15.dp))
+                if (index > 0) Spacer(Modifier.height(18.dp))
                 SkeletonBlock(
                     Modifier
                         .fillMaxWidth(width)

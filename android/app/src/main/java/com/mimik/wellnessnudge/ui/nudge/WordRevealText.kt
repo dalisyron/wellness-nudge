@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,9 @@ import com.mimik.wellnessnudge.ui.theme.rememberAnimationsEnabled
  * 30 ms apart, 400 ms each, after [delayMillis]. It is laid out, and read by TalkBack, as one
  * text throughout; each word is drawn on its own only while it arrives, at the place the full
  * layout gives it. With animations off it appears whole. [onRevealed] follows a reveal.
+ *
+ * The words are laid out one by one only when the first is due, not on the busy frame the
+ * screen appears in, and never again once the reveal is over.
  */
 @Composable
 internal fun WordRevealText(
@@ -55,17 +59,22 @@ internal fun WordRevealText(
 
     val measurer = rememberTextMeasurer(cacheSize = 0)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val done by remember(text) { derivedStateOf { elapsed.value >= duration } }
     val rise = with(LocalDensity.current) { WordRise.toPx() }
     Text(
         text = text,
         modifier = modifier.drawWithCache {
-            val pieces = if (playing) layout?.let { pieces(it, words, measurer, style) } else null
+            // Read here, so the cache is rebuilt when the layout changes or the reveal ends.
+            val full = layout
+            val animating = playing && !done
+            var pieces: List<WordPiece>? = null
             onDrawWithContent {
                 val time = elapsed.value
-                if (!playing || time >= duration) {
+                if (!animating || time >= duration) {
                     drawContent()
-                } else if (pieces != null) {
-                    for (piece in pieces) {
+                } else if (time > 0f && full != null) {
+                    val shownPieces = pieces ?: pieces(full, words, measurer, style).also { pieces = it }
+                    for (piece in shownPieces) {
                         val progress = ((time - piece.order * WordStaggerMillis) / WordMillis).coerceIn(0f, 1f)
                         // Words arrive in reading order: once one hasn't started, none after it has.
                         if (progress == 0f) break

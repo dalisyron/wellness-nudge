@@ -1,9 +1,12 @@
 package com.mimik.wellnessnudge.ui.nudge
 
 import com.mimik.wellnessnudge.api.NudgeRequest
+import com.mimik.wellnessnudge.data.toRequest
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NudgeTextTest {
@@ -24,10 +27,38 @@ class NudgeTextTest {
     }
 
     @Test
-    fun generatedLineLeavesOutWhatIsUnknown() {
-        assertEquals("Generated on this phone in 4.2 s · smollm2-360m", generatedLine(4_213, "smollm2-360m").spaced())
-        assertEquals("Generated on this phone · smollm2-360m", generatedLine(null, "smollm2-360m").spaced())
+    fun generatedLineNamesTheModelAndLeavesOutWhatIsUnknown() {
+        assertEquals("Generated on this phone in 4.2 s · SmolLM2 360M", generatedLine(4_213, "smollm2-360m").spaced())
+        assertEquals("Generated on this phone · SmolLM2 360M", generatedLine(null, "smollm2-360m").spaced())
         assertEquals("Generated on this phone in 4.2 s", generatedLine(4_213, null).spaced())
+        // A model the app doesn't ship keeps its id.
+        assertEquals("Generated on this phone · llama-3", generatedLine(null, "llama-3").spaced())
+        // Too long for a line, the model moves to its own.
+        assertEquals("Generated on this phone in 4.2 s\nSmolLM2 360M", generatedLine(4_213, "smollm2-360m", separator = "\n").spaced())
+    }
+
+    @Test
+    fun onlyAFreshNudgeWithAGoalCategoryJoinsForYou() {
+        val sleep = PreviewData.latest.copy(category = "improve-sleep")
+        assertTrue(sleep.toResult(reveal = true, fresh = true).joinsForYou)
+        assertFalse(sleep.toResult(reveal = false).joinsForYou)
+        assertFalse(sleep.copy(category = "other").toResult(reveal = true, fresh = true).joinsForYou)
+        assertFalse(sleep.copy(category = null).toResult(reveal = true, fresh = true).joinsForYou)
+    }
+
+    @Test
+    fun aRecordWithoutSignalsCantBeGeneratedAgain() {
+        assertTrue(NudgeRequest().isEmpty)
+        assertTrue(PreviewData.latest.copy(metrics = null, userGoal = null).toRequest().isEmpty)
+        assertFalse(PreviewData.request.isEmpty)
+    }
+
+    @Test
+    fun signalsHaveSpokenForms() {
+        val spoken = PreviewData.request.toSignals().associate { it.kind to it.spoken }
+        assertEquals("6 hours 30 minutes of sleep", spoken[SignalKind.Sleep])
+        assertEquals("resting heart rate 64", spoken[SignalKind.RestingHr])
+        assertEquals("heart rate variability 45 milliseconds", spoken[SignalKind.Hrv])
     }
 
     @Test

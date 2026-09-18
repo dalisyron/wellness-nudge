@@ -61,6 +61,30 @@ fun formatSeconds(millis: Long): String = String.format(Copy, "%.1f s", millis /
 fun formatBytes(bytes: Long): String =
     if (bytes >= GiB) String.format(Copy, "%.1f GB", bytes.toDouble() / GiB) else "${bytes / MiB} MB"
 
+/**
+ * Curly quotes for display: an apostrophe inside a word (don't, today's) becomes ’, and
+ * straight double quotes, taken in pairs, become “ and ”; one without a partner is left
+ * alone. For model text, which arrives with typewriter quotes the serif renders as ticks.
+ */
+fun String.withTypographicQuotes(): String {
+    val text = replace(InWordApostrophe, "\u2019")
+    val pairs = text.count { it == '"' } / 2 * 2
+    if (pairs == 0) return text
+    var seen = 0
+    return buildString(text.length) {
+        for (c in text) {
+            if (c == '"' && seen < pairs) {
+                append(if (seen % 2 == 0) '\u201C' else '\u201D')
+                seen++
+            } else {
+                append(c)
+            }
+        }
+    }
+}
+
+private val InWordApostrophe = Regex("(?<=\\p{L})'(?=\\p{L})")
+
 /** Good morning before noon, good afternoon before 5 PM, good evening after. */
 fun greetingFor(hour: Int): String = when {
     hour < 12 -> "Good morning"

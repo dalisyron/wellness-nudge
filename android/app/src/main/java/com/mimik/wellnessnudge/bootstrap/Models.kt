@@ -50,3 +50,10 @@ object Models {
     /** All models required before the main app is usable. */
     val ALL: List<ModelSpec> = listOf(SMOLLM2, QWEN3)
 }
+
+/**
+ * A model's name as people know it, e.g. "SmolLM2 360M" for "smollm2-360m" (its technical
+ * name without the quantization); an id the app doesn't ship is shown as it is.
+ */
+fun modelDisplayName(id: String): String =
+    Models.ALL.firstOrNull { it.download.id == id }?.technicalName?.substringBefore(" · ") ?: id

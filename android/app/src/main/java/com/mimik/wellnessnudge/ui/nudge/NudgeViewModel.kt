@@ -57,25 +57,28 @@ class NudgeViewModel(
     /** Rates the nudge on screen. The choice shows at once and rolls back if it can't be saved. */
     fun setFeedback(feedback: Feedback) {
         val nudge = shownNudge() ?: return
-        if (nudge.feedback == feedback) return
+        if (nudge.feedback == feedback || session.value.deleting) return
         viewModelScope.launch {
             try {
                 repository.setFeedback(nudge.id, feedback)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                session.update { it.copy(message = "Couldn't save your feedback.") }
+                session.update { it.copy(message = "Couldn’t save your feedback.") }
             }
         }
     }
 
     fun requestDelete() {
-        if (shownNudge() != null) session.update { it.copy(confirmingDelete = true) }
+        if (shownNudge() != null && !session.value.deleting) session.update { it.copy(confirmingDelete = true) }
     }
 
     fun dismissDelete() = session.update { it.copy(confirmingDelete = false) }
 
-    /** Deletes the nudge on screen; [NudgeUiState.deleted] then tells the screen to leave. */
+    /**
+     * Deletes the nudge on screen. The screen's actions wait meanwhile; once it is gone,
+     * [NudgeUiState.deleted] tells the screen to leave, as long as it still shows that nudge.
+     */
     fun delete() {
         val nudge = shownNudge() ?: return
         val current = session.value
@@ -84,11 +87,11 @@ class NudgeViewModel(
         viewModelScope.launch {
             try {
                 repository.delete(nudge.id)
-                session.update { it.copy(deleting = false, deleted = true) }
+                session.update { it.copy(deleting = false, deleted = shownNudge()?.id == nudge.id) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                session.update { it.copy(deleting = false, message = "Couldn't delete this nudge.") }
+                session.update { it.copy(deleting = false, message = "Couldn’t delete this nudge.") }
             }
         }
     }
@@ -105,10 +108,11 @@ class NudgeViewModel(
 
     /** `nudge/new`: the generation, with the elapsed time ticking while the model writes. */
     private fun generationContent(): Flow<NudgeContent> = repository.generation
-        // Idle: the shell is closing the screen. Keep the last stage on screen while it leaves.
+        // Idle: nothing was generated (a stack restored after process death). The shell leaves;
+        // keep the last stage on screen while it does.
         .filterNot { it is GenerationState.Idle }
         .transformLatest { generation ->
-            if (generation is GenerationState.Running) {
+            if (generation is GenerationState.Running && !generation.waiting) {
                 val signals = generation.request.toSignals()
                 while (true) {
                     emit(NudgeContent.Generating(signals, elapsedMs = elapsedRealtime() - generation.startedAtMs))
@@ -138,9 +142,7 @@ class NudgeViewModel(
             return@transformLatest
         }
         emitAll(
-            combine(repository.historyFlow, repository.generation) { history, generation ->
-                cached(id, history, generation)
-            }
+            repository.observe(id)
                 .filterNotNull()
                 .onStart { emit(loaded) }
                 .distinctUntilChanged()
@@ -154,15 +156,23 @@ class NudgeViewModel(
         return if (nudgeId == null) {
             generation.toContent()
         } else {
-            cached(nudgeId, repository.historyFlow.value, generation)?.toResult(reveal = false)
+            repository.peek(nudgeId)?.toResult(reveal = false)
         } ?: NudgeContent.Loading
     }
 
     private fun GenerationState.toContent(): NudgeContent? = when (this) {
         GenerationState.Idle -> null
-        is GenerationState.Running -> NudgeContent.Generating(request.toSignals(), elapsedRealtime() - startedAtMs)
-        is GenerationState.Success ->
-            item.toResult(reveal = true, latencyMs = item.latencyMs ?: latencyMs, request = request)
+        is GenerationState.Running -> NudgeContent.Generating(
+            signals = request.toSignals(),
+            elapsedMs = if (waiting) 0L else elapsedRealtime() - startedAtMs,
+            waiting = waiting,
+        )
+        is GenerationState.Success -> item.toResult(
+            reveal = true,
+            latencyMs = item.latencyMs ?: latencyMs,
+            request = request,
+            fresh = true,
+        )
         is GenerationState.Failed -> NudgeContent.GenerationFailed(message, request)
     }
 
@@ -173,6 +183,7 @@ class NudgeViewModel(
             content
         },
         confirmingDelete = session.confirmingDelete && content is NudgeContent.Result,
+        deleting = session.deleting,
         deleted = session.deleted,
         message = session.message,
     )
@@ -194,11 +205,13 @@ class NudgeViewModel(
 /**
  * A saved or fresh nudge as the screen shows it, grounded in the signals of its record. A
  * saved nudge regenerates from its record; a fresh one from the exact request it came from.
+ * A [fresh] nudge with a goal category joins For you once rated helpful.
  */
 internal fun NudgeHistoryItem.toResult(
     reveal: Boolean,
     latencyMs: Long? = this.latencyMs,
     request: NudgeRequest? = null,
+    fresh: Boolean = false,
 ): NudgeContent.Result {
     val recorded = toRequest()
     return NudgeContent.Result(
@@ -207,9 +220,9 @@ internal fun NudgeHistoryItem.toResult(
         latencyMs = latencyMs?.takeIf { it > 0 },
         request = request ?: recorded,
         reveal = reveal,
+        joinsForYou = fresh && !category.isNullOrBlank() && category != GeneralCategory,
     )
 }
 
-/** The nudge [id] from the history cache, or the fresh result that hasn't reached it. */
-private fun cached(id: String, history: List<NudgeHistoryItem>?, generation: GenerationState): NudgeHistoryItem? =
-    history?.firstOrNull { it.id == id } ?: (generation as? GenerationState.Success)?.item?.takeIf { it.id == id }
+/** The classifier's catch-all; For you leaves it out. */
+private const val GeneralCategory = "other"

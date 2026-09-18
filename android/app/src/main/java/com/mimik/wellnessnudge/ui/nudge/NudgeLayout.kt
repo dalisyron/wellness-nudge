@@ -36,8 +36,10 @@ internal fun StageFooter(modifier: Modifier = Modifier, content: @Composable () 
 }
 
 /**
- * Two buttons side by side at equal widths and heights, or stacked at full width when either
- * label wouldn't fit its half, e.g. at large font sizes.
+ * Two buttons side by side at equal widths and heights, or, when either label wouldn't fit
+ * its half (e.g. at large font sizes): [compactFirst] (an icon button standing in for the
+ * first) beside the second, which takes the rest of the row, or without one, both stacked at
+ * full width.
  */
 @Composable
 internal fun ButtonPair(
@@ -45,29 +47,44 @@ internal fun ButtonPair(
     second: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     spacing: Dp = WellnessSpacing.ItemGap,
+    compactFirst: (@Composable () -> Unit)? = null,
 ) {
-    Layout(contents = listOf(first, second), modifier = modifier) { (firstSlot, secondSlot), constraints ->
+    Layout(contents = listOf(first, second, compactFirst ?: {}), modifier = modifier) { (firstSlot, secondSlot, compactSlot), constraints ->
         val a = firstSlot.first()
         val b = secondSlot.first()
+        val compact = compactSlot.firstOrNull()
         val gap = spacing.roundToPx()
         val width = constraints.maxWidth
         val half = (width - gap) / 2
         val sideBySide = listOf(a, b).all { it.maxIntrinsicWidth(Constraints.Infinity) <= half }
-        if (sideBySide) {
-            val height = maxOf(a.maxIntrinsicHeight(half), b.maxIntrinsicHeight(half))
-            val placeA = a.measure(Constraints.fixed(half, height))
-            val placeB = b.measure(Constraints.fixed(half, height))
-            layout(width, height) {
-                placeA.placeRelative(0, 0)
-                placeB.placeRelative(width - half, 0)
+        when {
+            sideBySide -> {
+                val height = maxOf(a.maxIntrinsicHeight(half), b.maxIntrinsicHeight(half))
+                val placeA = a.measure(Constraints.fixed(half, height))
+                val placeB = b.measure(Constraints.fixed(half, height))
+                layout(width, height) {
+                    placeA.placeRelative(0, 0)
+                    placeB.placeRelative(width - half, 0)
+                }
             }
-        } else {
-            val full = Constraints(minWidth = width, maxWidth = width)
-            val placeA = a.measure(full)
-            val placeB = b.measure(full)
-            layout(width, placeA.height + gap + placeB.height) {
-                placeA.placeRelative(0, 0)
-                placeB.placeRelative(0, placeA.height + gap)
+            compact != null -> {
+                val placeCompact = compact.measure(Constraints())
+                val rest = (width - placeCompact.width - gap).coerceAtLeast(0)
+                val height = maxOf(placeCompact.height, b.maxIntrinsicHeight(rest))
+                val placeB = b.measure(Constraints.fixed(rest, height))
+                layout(width, height) {
+                    placeCompact.placeRelative(0, (height - placeCompact.height) / 2)
+                    placeB.placeRelative(width - rest, 0)
+                }
+            }
+            else -> {
+                val full = Constraints(minWidth = width, maxWidth = width)
+                val placeA = a.measure(full)
+                val placeB = b.measure(full)
+                layout(width, placeA.height + gap + placeB.height) {
+                    placeA.placeRelative(0, 0)
+                    placeB.placeRelative(0, placeA.height + gap)
+                }
             }
         }
     }

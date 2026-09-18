@@ -73,10 +73,11 @@ internal object NudgePreviewData {
     )
 
     /** A fresh result, its words all in. */
-    val result = NudgeUiState(fresh.toResult(reveal = false, request = shortNight))
+    val result = NudgeUiState(fresh.toResult(reveal = false, request = shortNight, fresh = true))
 
+    /** Rated helpful: a fresh sleep nudge, so it joins For you. */
     val resultHelpful = NudgeUiState(
-        fresh.copy(helpful = Feedback.Helpful.wireValue).toResult(reveal = false, request = shortNight),
+        fresh.copy(helpful = Feedback.Helpful.wireValue).toResult(reveal = false, request = shortNight, fresh = true),
     )
 
     val savedNotHelpful = NudgeUiState(fromJournal.toResult(reveal = false))

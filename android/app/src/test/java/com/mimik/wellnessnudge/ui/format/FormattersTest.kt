@@ -41,6 +41,14 @@ class FormattersTest {
     }
 
     @Test
+    fun modelTextGetsTypographicQuotes() {
+        assertEquals("Swap today\u2019s run; don\u2019t skip it.", "Swap today's run; don't skip it.".withTypographicQuotes())
+        assertEquals("Call it \u201Cwind-down time\u201D tonight.", "Call it \"wind-down time\" tonight.".withTypographicQuotes())
+        // Quotes that aren't inside a word, or have no partner, stay as they are.
+        assertEquals("The runners' legs, 5\" long", "The runners' legs, 5\" long".withTypographicQuotes())
+    }
+
+    @Test
     fun greetings() {
         assertEquals("Good morning", greetingFor(9))
         assertEquals("Good afternoon", greetingFor(12))

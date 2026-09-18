@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -40,6 +41,7 @@ import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,6 +77,9 @@ import com.mimik.wellnessnudge.ui.theme.WellnessTheme
  * phone, the nudge it wrote, revealed word by word when fresh, and the user's verdict. One orb
  * carries through the stages: it thinks at the center, then settles beside the result or dims
  * above an error. Stateless: [NudgeRoute] wires it to [NudgeViewModel].
+ *
+ * Messages (a rating or a delete that failed) show in a snackbar above the footer on
+ * whichever stage is up, so one never waits to pop up over the next nudge.
  */
 @Composable
 fun NudgeScreen(
@@ -108,13 +113,14 @@ fun NudgeScreen(
             // First to be read, drawn over the stage so the orb's halo passes under the buttons.
             TopBar(
                 showDelete = state.content is NudgeContent.Result,
+                deleteEnabled = !state.deleting,
                 onBack = onBack,
                 onDelete = onDeleteRequest,
                 modifier = Modifier.zIndex(1f),
             )
             NudgeStage(
                 content = state.content,
-                snackbarHostState = snackbarHostState,
+                deleting = state.deleting,
                 onBack = onBack,
                 onDone = onDone,
                 onTryAnother = onTryAnother,
@@ -125,6 +131,16 @@ fun NudgeScreen(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .padding(top = TopBarGap + TopBarButtonSize),
+            )
+            // Above the footer, lined up with the screen margin (Material's snackbar pads itself by 12 dp).
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(2f)
+                    .navigationBarsPadding()
+                    .padding(bottom = FooterClearance)
+                    .padding(horizontal = WellnessSpacing.ScreenMargin - 12.dp),
             )
         }
     }
@@ -145,7 +161,7 @@ internal typealias OrbSlot = @Composable (size: Dp, mode: OrbMode, modifier: Mod
 @Composable
 private fun NudgeStage(
     content: NudgeContent,
-    snackbarHostState: SnackbarHostState,
+    deleting: Boolean,
     onBack: () -> Unit,
     onDone: () -> Unit,
     onTryAnother: (NudgeRequest) -> Unit,
@@ -183,14 +199,14 @@ private fun NudgeStage(
                     result = stage,
                     orb = orbSlot,
                     entrance = this,
-                    snackbarHostState = snackbarHostState,
+                    deleting = deleting,
                     onFeedback = onFeedback,
                     onTryAnother = onTryAnother,
                     onDone = onDone,
                     onRevealed = onRevealed,
                 )
                 is NudgeContent.GenerationFailed -> FailedContent(
-                    title = "Couldn't finish that nudge",
+                    title = "Couldn’t finish that nudge",
                     body = stage.message,
                     orb = orbSlot,
                     onBack = onBack,
@@ -204,8 +220,8 @@ private fun NudgeStage(
                     },
                 )
                 NudgeContent.LoadFailed -> FailedContent(
-                    title = "Couldn't open that nudge",
-                    body = "The on-device service didn't answer. Give it another try.",
+                    title = "Couldn’t open that nudge",
+                    body = "The on-device service didn’t answer. Give it another try.",
                     orb = orbSlot,
                     onBack = onBack,
                     retry = { retryModifier ->
@@ -217,9 +233,10 @@ private fun NudgeStage(
                         )
                     },
                 )
+                // Only a delete makes a nudge the caches and the mim can't find; say what is known.
                 NudgeContent.Missing -> FailedContent(
-                    title = "This nudge is gone",
-                    body = "It was removed from this phone.",
+                    title = "Couldn’t find that nudge",
+                    body = "It may have been deleted from this phone.",
                     orb = orbSlot,
                     onBack = onBack,
                     retry = null,
@@ -273,6 +290,7 @@ internal fun AnimatedVisibilityScope.entrance(order: Int, rise: Dp = SectionRise
 @Composable
 private fun TopBar(
     showDelete: Boolean,
+    deleteEnabled: Boolean,
     onBack: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -292,7 +310,7 @@ private fun TopBar(
             enter = fadeIn(tween(WellnessMotion.ScreenMillis, easing = WellnessMotion.Easing)),
             exit = fadeOut(tween(WellnessMotion.SmallMillis, easing = WellnessMotion.Easing)),
         ) {
-            CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete nudge", onClick = onDelete)
+            CircleIconButton(Icons.Rounded.DeleteOutline, contentDescription = "Delete nudge", onClick = onDelete, enabled = deleteEnabled)
         }
     }
 }
@@ -328,7 +346,8 @@ internal fun DeleteNudgeDialogContent(
             Text(
                 text = "Delete this nudge?",
                 modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineSmall,
+                // Material's dialog title size; headlineSmall is the larger nudge hero.
+                style = MaterialTheme.typography.headlineMedium,
                 color = AlertDialogDefaults.titleContentColor,
             )
             Spacer(Modifier.height(16.dp))
@@ -354,6 +373,9 @@ private val OrbFlight = BoundsTransform { _, _ -> tween(WellnessMotion.RevealMil
 
 private val TopBarGap = 8.dp
 private val TopBarButtonSize = 44.dp
+
+/** A stage's footer: its 60 dp buttons and their 12 dp margins. */
+private val FooterClearance = FooterButtonHeight + 24.dp
 private val SectionRise = 16.dp
 
 private const val StageFadeMillis = 300

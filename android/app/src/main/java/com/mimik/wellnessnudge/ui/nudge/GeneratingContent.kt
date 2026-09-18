@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
@@ -36,7 +37,8 @@ import com.mimik.wellnessnudge.ui.theme.tabular
 
 /**
  * The model at work: the thinking orb, which model runs where, the time so far, and the
- * signals it is reading, arriving one by one.
+ * signals it is reading, arriving one by one. While another nudge is still on the model,
+ * it says it is waiting for it instead of counting time.
  */
 @Composable
 internal fun GeneratingContent(content: NudgeContent.Generating, orb: OrbSlot) {
@@ -46,6 +48,7 @@ internal fun GeneratingContent(content: NudgeContent.Generating, orb: OrbSlot) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .semantics { paneTitle = "Thinking on-device" }
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
             .padding(horizontal = WellnessSpacing.ScreenMargin, vertical = 24.dp),
@@ -64,16 +67,16 @@ internal fun GeneratingContent(content: NudgeContent.Generating, orb: OrbSlot) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            // No-break spaces before the dots: a wrapped line ends on a dot rather than starting with one.
-            text = "SmolLM2\u00A0· 360M parameters\u00A0· running locally on mimOE",
-            // Balanced lines: centered text that wraps shouldn't leave one word on a line.
+            // Two lines, always: the model, then where it runs.
+            text = "SmolLM2 · 360M parameters\nrunning locally on mimOE",
+            // Balanced lines: centered text that wraps further shouldn't leave one word on a line.
             style = typography.bodySmall.copy(lineBreak = LineBreak.Heading),
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = formatSeconds(content.elapsedMs),
+            text = if (content.waiting) "Waiting for the model…" else formatSeconds(content.elapsedMs),
             style = typography.labelLarge.tabular(),
             color = colors.textTertiary,
         )
@@ -86,7 +89,7 @@ internal fun GeneratingContent(content: NudgeContent.Generating, orb: OrbSlot) {
             Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
             SignalChips(
                 signals = content.signals,
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                centered = true,
                 appearance = appearance,
             )
         }
