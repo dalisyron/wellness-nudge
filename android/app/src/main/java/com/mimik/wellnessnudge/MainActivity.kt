@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -17,6 +18,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mimik.wellnessnudge.bootstrap.BootstrapState
 import com.mimik.wellnessnudge.bootstrap.BootstrapViewModel
 import com.mimik.wellnessnudge.ui.WellnessApp
+import com.mimik.wellnessnudge.ui.format.LocalWellnessClock
+import com.mimik.wellnessnudge.ui.format.rememberSystemClock
 import com.mimik.wellnessnudge.ui.theme.WellnessTheme
 
 class MainActivity : ComponentActivity() {
@@ -59,13 +62,16 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
             WellnessTheme(darkTheme = darkTheme) {
-                WellnessApp(
-                    bootstrap = state,
-                    onRetry = bootstrapVm::retry,
-                    onRetryModel = bootstrapVm::retryModel,
-                    onContinue = bootstrapVm::continueToMain,
-                    loadRuntimeInfo = bootstrapVm::loadRuntimeInfo,
-                )
+                // Kept current, so greetings, dates and day names move on while the app is open.
+                CompositionLocalProvider(LocalWellnessClock provides rememberSystemClock()) {
+                    WellnessApp(
+                        bootstrap = state,
+                        onRetry = bootstrapVm::retry,
+                        onRetryModel = bootstrapVm::retryModel,
+                        onContinue = bootstrapVm::continueToMain,
+                        loadRuntimeInfo = bootstrapVm::loadRuntimeInfo,
+                    )
+                }
             }
         }
     }
