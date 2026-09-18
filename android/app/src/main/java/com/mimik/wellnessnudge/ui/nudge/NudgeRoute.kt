@@ -1,30 +1,25 @@
 package com.mimik.wellnessnudge.ui.nudge
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mimik.wellnessnudge.api.NudgeRequest
 import com.mimik.wellnessnudge.data.NudgeRepository
-import com.mimik.wellnessnudge.ui.components.CircleIconButton
-import com.mimik.wellnessnudge.ui.components.DaybreakBackground
-import com.mimik.wellnessnudge.ui.components.ScreenTitle
-import com.mimik.wellnessnudge.ui.theme.WellnessSpacing
 
 /**
- * Full-screen nudge. PLACEHOLDER until the Nudge screen (spec 4.3) replaces it.
+ * The full-screen nudge (spec 4.3): [NudgeScreen] driven by a [NudgeViewModel].
  *
  * @param nudgeId the saved nudge to show (`nudge/saved/{id}`), or null on `nudge/new`: render
  *   [NudgeRepository.generation] (Running: generating, Success: the result, Failed: the error).
- *   Idle means there is nothing to show and the shell pops the screen, so keep rendering the
- *   last non-Idle state while it leaves. Deleting doesn't reset the generation: after
- *   [NudgeRepository.delete] returns, call [onBack] and the result stays put while it exits.
+ *   Idle means there is nothing to show and the shell pops the screen, so the last non-Idle
+ *   state stays on screen while it leaves. Deleting doesn't reset the generation: once
+ *   [NudgeRepository.delete] returns this calls [onBack], and the result stays put as it exits.
  * @param onTryAnother regenerates with a request. On `nudge/saved/{id}` the shell swaps this
  *   screen for `nudge/new`; on `nudge/new` the generation simply turns Running again. The
  *   shell ignores it while the screen is entering or leaving.
@@ -39,20 +34,26 @@ fun NudgeRoute(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    DaybreakBackground(modifier) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-                .padding(horizontal = WellnessSpacing.ScreenMargin, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            CircleIconButton(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", onClick = onBack)
-            ScreenTitle(
-                eyebrow = "Placeholder",
-                title = "NudgeRoute",
-                subtitle = nudgeId?.let { "Saved nudge $it" } ?: "New nudge (nudge/new)",
-            )
-        }
+    val viewModel: NudgeViewModel = viewModel(
+        factory = viewModelFactory { initializer { NudgeViewModel(repository, nudgeId) } },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val leave by rememberUpdatedState(onBack)
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) leave()
     }
+    NudgeScreen(
+        state = state,
+        onBack = onBack,
+        onDone = onDone,
+        onTryAnother = onTryAnother,
+        onRetryLoad = viewModel::retryLoad,
+        onFeedback = viewModel::setFeedback,
+        onDeleteRequest = viewModel::requestDelete,
+        onDeleteConfirm = viewModel::delete,
+        onDeleteDismiss = viewModel::dismissDelete,
+        onRevealed = viewModel::onRevealed,
+        onMessageShown = viewModel::onMessageShown,
+        modifier = modifier,
+    )
 }
