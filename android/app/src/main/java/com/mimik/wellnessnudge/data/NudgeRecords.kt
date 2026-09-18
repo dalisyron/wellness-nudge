@@ -64,9 +64,9 @@ internal fun NudgeResponse.toHistoryItem(
     fallbackTs: Long,
 ): NudgeHistoryItem = NudgeHistoryItem(
     id = id,
-    ts = id.removePrefix("nudge_").toLongOrNull() ?: fallbackTs,
+    ts = ts ?: id.removePrefix("nudge_").toLongOrNull() ?: fallbackTs,
     metrics = metricsUsed ?: request.toMetrics(),
-    userGoal = request.userGoal.orEmpty(),
+    userGoal = userGoal ?: request.userGoal.orEmpty(),
     category = category,
     nudge = nudge,
     model = model,

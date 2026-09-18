@@ -29,6 +29,10 @@ data class NudgeResponse(
     val metricsUsed: Map<String, Any?>?,
     /** Inference time in ms, when the mim reports it; the app otherwise measures it. */
     val latencyMs: Long? = null,
+    /** When the mim stored the nudge (unix ms). */
+    val ts: Long? = null,
+    /** The goal as the mim stored it; empty when none was sent. */
+    val userGoal: String? = null,
 ) {
     data class Usage(
         @SerializedName("prompt_tokens") val promptTokens: Int?,
