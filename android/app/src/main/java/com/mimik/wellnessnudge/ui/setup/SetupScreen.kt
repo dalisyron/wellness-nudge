@@ -1,10 +1,8 @@
 package com.mimik.wellnessnudge.ui.setup
 
 import android.os.SystemClock
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +17,7 @@ import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -93,11 +92,12 @@ import com.mimik.wellnessnudge.ui.theme.tabular
 
 /**
  * First-run setup, the moment the whole stack boots on this phone: a checklist from the
- * mimOE runtime to the AI models, a card per model download, and a sticky action that
- * turns into "Start using Wellness Nudge" once every model is ready.
+ * mimOE runtime to the AI models, a card per model (shown from the start, so their size is
+ * clear before the download), and a sticky action that turns into "Start using Wellness
+ * Nudge" once every model is ready, or into Try again when something needs another go.
  *
  * While models download the page rests at its end, so the cards and the action stay in
- * view on phones where everything doesn't fit; it glides there when the downloads appear.
+ * view on phones where everything doesn't fit; it glides there when the downloads begin.
  *
  * @param onRetry restarts setup after a failure.
  * @param onRetryModel retries one failed model download by id.
@@ -111,9 +111,8 @@ fun SetupScreen(
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val showModels = state.models.isNotEmpty()
-    val scrollState = rememberScrollState(initial = if (showModels) Int.MAX_VALUE else 0)
-    FollowDownloads(showModels, scrollState)
+    val scrollState = rememberScrollState(initial = if (state.modelPhase) Int.MAX_VALUE else 0)
+    FollowDownloads(state.modelPhase, scrollState)
 
     DaybreakBackground(modifier) {
         Column(
@@ -132,39 +131,40 @@ fun SetupScreen(
                 },
             )
             Spacer(Modifier.height(WellnessSpacing.SectionGap))
-            SectionHeader("Setting up")
+            SectionHeader(if (state.status == SetupStatus.Ready) "Set up on this phone" else "Setting up")
             Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
             Checklist(state.steps)
-            AnimatedVisibility(
-                visible = showModels,
-                enter = fadeIn(tween(WellnessMotion.RevealMillis, easing = WellnessMotion.Easing)),
-            ) {
-                Column {
-                    Spacer(Modifier.height(WellnessSpacing.SectionGap))
-                    SectionHeader("AI models")
-                    Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
-                    Column(verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
-                        state.models.forEach { model ->
-                            key(model.id) { ModelCard(model, onRetry = { onRetryModel(model.id) }) }
-                        }
+            if (state.models.isNotEmpty()) {
+                Spacer(Modifier.height(WellnessSpacing.SectionGap))
+                SectionHeader("AI models")
+                Spacer(Modifier.height(WellnessSpacing.EyebrowGap))
+                Column(verticalArrangement = Arrangement.spacedBy(WellnessSpacing.ItemGap)) {
+                    state.models.forEach { model ->
+                        key(model.id) { ModelCard(model, onRetry = { onRetryModel(model.id) }) }
                     }
                 }
             }
         }
         StatusBarScrim(scrollState)
-        Footer(state.status, onRetry, onContinue, Modifier.align(Alignment.BottomCenter))
+        Footer(
+            state = state,
+            onRetry = onRetry,
+            onRetryModel = onRetryModel,
+            onContinue = onContinue,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
 /**
- * Brings the model cards into view once, when the downloads first appear below the fold.
- * Pages first composed in the model phase already start at their end.
+ * Brings the model cards into view once, when their downloads begin while they are below the
+ * fold. Pages first composed in the model phase already start at their end.
  */
 @Composable
-private fun FollowDownloads(showModels: Boolean, scrollState: ScrollState) {
-    var followed by rememberSaveable { mutableStateOf(showModels) }
-    LaunchedEffect(showModels) {
-        if (!showModels || followed) return@LaunchedEffect
+private fun FollowDownloads(modelPhase: Boolean, scrollState: ScrollState) {
+    var followed by rememberSaveable { mutableStateOf(modelPhase) }
+    LaunchedEffect(modelPhase) {
+        if (!modelPhase || followed) return@LaunchedEffect
         followed = true
         // By the next frame the new section is laid out, so the scroll range includes it.
         withFrameNanos {}
@@ -194,7 +194,7 @@ private fun Hero(orb: OrbMode) {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "Wellness Nudge runs a small language model entirely on this phone through mimik's mimOE " +
+            text = "Wellness Nudge runs small AI models entirely on this phone through mimik’s mimOE " +
                 "runtime. Your sleep, heart and activity data never leave the device.",
             style = MaterialTheme.typography.bodyLarge,
             color = colors.textSecondary,
@@ -217,7 +217,8 @@ private fun Checklist(steps: List<StepState>) {
 private fun ChecklistRow(state: StepState, number: Int, joinsNext: Boolean) {
     val colors = WellnessTheme.colors
     val pending = state.status == StepStatus.Pending
-    val connector = if (state.status == StepStatus.Done) colors.success.copy(alpha = 0.5f) else colors.hairlineStrong
+    // One continuous timeline: lit from each finished step down to the next.
+    val connector = if (state.status == StepStatus.Done) colors.success else colors.hairlineStrong
     // The marker is centered on the title's line; at large text sizes the line is the taller one.
     val titleStyle = MaterialTheme.typography.titleSmall
     val titleLine = with(LocalDensity.current) { titleStyle.lineHeight.toDp() }
@@ -228,16 +229,16 @@ private fun ChecklistRow(state: StepState, number: Int, joinsNext: Boolean) {
             .fillMaxWidth()
             .drawBehind {
                 if (joinsNext) {
-                    // From just below this marker to just above the next one.
+                    // From this marker's edge to the next one's, with a hair of air at each end.
                     val x = MarkerSize.toPx() / 2f
                     val top = markerTop.toPx()
-                    val gap = 4.dp.toPx()
+                    val gap = ConnectorGap.toPx()
                     drawLine(
                         color = connector,
                         start = Offset(x, top + MarkerSize.toPx() + gap),
                         end = Offset(x, size.height + RowGap.toPx() + top - gap),
                         strokeWidth = 1.5.dp.toPx(),
-                        cap = StrokeCap.Round,
+                        cap = StrokeCap.Butt,
                     )
                 }
             }
@@ -259,7 +260,7 @@ private fun ChecklistRow(state: StepState, number: Int, joinsNext: Boolean) {
                 color = if (pending) colors.textSecondary else colors.textPrimary,
             )
             Text(
-                text = state.step.detail,
+                text = state.detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (pending) colors.textTertiary else colors.textSecondary,
             )
@@ -307,12 +308,13 @@ private fun ModelCard(model: ModelCardState, onRetry: () -> Unit) {
             .semantics(mergeDescendants = true) {},
     ) {
         ModelHeader(model.name, model.details)
-        Spacer(Modifier.height(14.dp))
         when (model.status) {
-            ModelStatus.Starting -> IndeterminateMeter(colors.daybreak)
+            // Done: the check and "Ready" say it; a full gradient bar would only compete with the action.
+            ModelStatus.Ready -> Unit
+            ModelStatus.Starting -> Meter { IndeterminateMeter(colors.daybreak) }
             // Paused where the download stopped; the message below says why.
-            ModelStatus.Failed -> LinearMeter(model.progress, colors.textDisabled)
-            else -> LinearMeter(model.progress, colors.daybreak, progressDescription = model.progressDescription)
+            ModelStatus.Failed -> Meter { LinearMeter(model.progress, colors.textDisabled) }
+            else -> Meter { LinearMeter(model.progress, colors.daybreak, progressDescription = model.progressDescription) }
         }
         Spacer(Modifier.height(10.dp))
         if (model.status == ModelStatus.Failed) {
@@ -362,7 +364,7 @@ private fun ModelHeader(name: String, details: String) {
 private fun StatusLine(model: ModelCardState) {
     val colors = WellnessTheme.colors
     val (icon, tint) = when (model.status) {
-        ModelStatus.Waiting -> Icons.Rounded.Schedule to colors.textTertiary
+        ModelStatus.Upcoming, ModelStatus.Waiting -> Icons.Rounded.Schedule to colors.textTertiary
         ModelStatus.Starting, ModelStatus.Downloading -> Icons.Rounded.Download to colors.accent
         ModelStatus.Ready -> Icons.Rounded.CheckCircle to colors.success
         ModelStatus.Failed -> Icons.Rounded.ErrorOutline to colors.danger
@@ -379,12 +381,19 @@ private fun StatusLine(model: ModelCardState) {
     }
 }
 
-/** Retry that ignores a second tap while the card is still turning back to downloading. */
+/** A meter below the model's name, with the gap it needs. */
+@Composable
+private fun Meter(meter: @Composable () -> Unit) {
+    Spacer(Modifier.height(14.dp))
+    meter()
+}
+
+/** Try again that ignores a second tap while the card is still turning back to downloading. */
 @Composable
 private fun RetryAction(onRetry: () -> Unit) {
     var lastTap by remember { mutableLongStateOf(0L) }
     TextAction(
-        text = "Retry",
+        text = "Try again",
         icon = Icons.Rounded.Refresh,
         onClick = {
             val now = SystemClock.uptimeMillis()
@@ -425,9 +434,19 @@ private fun WithTrailingAction(action: @Composable () -> Unit, content: @Composa
     }
 }
 
-/** The sticky action over a short fade, so the page scrolls away beneath it. */
+/**
+ * The sticky action over a short fade, so the page scrolls away beneath it: "Setting up…"
+ * while work runs, Try again after a failure (the whole setup, or the model download that
+ * stopped), then the way into the app.
+ */
 @Composable
-private fun Footer(status: SetupStatus, onRetry: () -> Unit, onContinue: () -> Unit, modifier: Modifier = Modifier) {
+private fun Footer(
+    state: SetupUiState,
+    onRetry: () -> Unit,
+    onRetryModel: (modelId: String) -> Unit,
+    onContinue: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = WellnessTheme.colors
     Column(modifier.fillMaxWidth()) {
         Spacer(
@@ -446,8 +465,10 @@ private fun Footer(status: SetupStatus, onRetry: () -> Unit, onContinue: () -> U
                 .padding(horizontal = WellnessSpacing.ScreenMargin)
                 .padding(bottom = FooterBottomMargin),
         ) {
-            val fill = Modifier.fillMaxWidth()
-            when (status) {
+            val fill = Modifier
+                .fillMaxWidth()
+                .heightIn(min = FooterButtonHeight)
+            when (state.status) {
                 SetupStatus.Failed -> SecondaryButton(
                     text = "Try again",
                     onClick = onRetry,
@@ -458,16 +479,19 @@ private fun Footer(status: SetupStatus, onRetry: () -> Unit, onContinue: () -> U
                     text = "Start using Wellness Nudge",
                     onClick = onContinue,
                     modifier = fill,
-                    icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                    icon = null,
+                    trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward,
                 )
-                // Nothing runs while a failed download waits for Retry: quiet, not "Setting up…".
-                SetupStatus.Paused -> GradientButton(
-                    text = "Start using Wellness Nudge",
-                    onClick = {},
-                    modifier = fill,
-                    icon = Icons.AutoMirrored.Rounded.ArrowForward,
-                    enabled = false,
-                )
+                // A download stopped and nothing else runs: the way forward is to try it again.
+                SetupStatus.Paused -> {
+                    val failed = state.models.firstOrNull { it.status == ModelStatus.Failed }
+                    SecondaryButton(
+                        text = "Try again",
+                        onClick = { failed?.let { onRetryModel(it.id) } },
+                        modifier = fill,
+                        icon = Icons.Rounded.Refresh,
+                    )
+                }
                 SetupStatus.Working -> GradientButton(
                     text = "Setting up…",
                     onClick = {},
@@ -516,12 +540,17 @@ private val StepStatus.description: String
     }
 
 private val MarkerSize = 28.dp
-private val RowGap = 8.dp
+private val RowGap = 14.dp
+private val ConnectorGap = 2.dp
 
-private val FooterBottomMargin = 16.dp
+/** Above the navigation bar, as on the Nudge screen. */
+private val FooterBottomMargin = 12.dp
 
-/** The action (60 dp) and its margin above the navigation bar. */
-private val FooterHeight = 60.dp + FooterBottomMargin
+/** Every footer action is as tall as the gradient one, so the footer doesn't jump between states. */
+private val FooterButtonHeight = 60.dp
+
+/** The action and its margin above the navigation bar. */
+private val FooterHeight = FooterButtonHeight + FooterBottomMargin
 
 /** Between the last card and the action: the fade the page scrolls away under. */
 private val ContentClearance = 16.dp

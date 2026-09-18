@@ -162,11 +162,11 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                 val msg = t.message.orEmpty()
                 val friendly = if (msg.contains("edge ID token", ignoreCase = true) ||
                     msg.contains("Connection failed", ignoreCase = true)) {
-                    "We couldn't reach the mimik identity service to set up your local AI. " +
+                    "We couldn’t reach the mimik identity service to set up your local AI. " +
                         "This usually means the phone is offline or on an IPv6-only cellular " +
-                        "network. Connect to Wi-Fi and tap Retry."
+                        "network. Connect to Wi-Fi and tap Try again."
                 } else {
-                    "Couldn't log in to the mimik runtime: $msg"
+                    "Couldn’t activate the mimik runtime: $msg"
                 }
                 fail(BootstrapState.Phase.LOGIN, friendly, t)
                 return
@@ -272,7 +272,7 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
                 updateItem(idx) {
                     it.copy(
                         state = ModelSetupItem.State.Failed,
-                        errorMessage = "Download didn't complete. Check your connection and tap Retry.",
+                        errorMessage = "Download didn’t complete. Check your connection and tap Try again.",
                     )
                 }
             }
@@ -293,10 +293,10 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
             msg.contains("Unable to resolve", ignoreCase = true) ||
                 msg.contains("Failed to connect", ignoreCase = true) ||
                 msg.contains("UnknownHost", ignoreCase = true) ->
-                "Couldn't reach the download server. Check your internet and tap Retry."
+                "Couldn’t reach the download server. Check your internet and tap Try again."
             msg.contains("404", ignoreCase = true) ->
                 "This model file moved or is no longer available."
-            else -> "Download failed. Tap Retry to try again."
+            else -> "Download failed. Tap Try again."
         }
     }
 

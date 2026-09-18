@@ -17,8 +17,8 @@ private val DayFormat = DateTimeFormatter.ofPattern("EEE, MMM d", Copy)
 private val FullDateFormat = DateTimeFormatter.ofPattern("EEEE, MMMM d", Copy)
 private val ShortDateFormat = DateTimeFormatter.ofPattern("MMM d", Copy)
 
-private const val MiB = 1024L * 1024
-private const val GiB = MiB * 1024
+private const val MB = 1_000_000L
+private const val GB = 1_000_000_000L
 
 /** 6.5 → "6h 30m". */
 fun formatSleep(hours: Float): String {
@@ -57,9 +57,16 @@ fun formatPercent(percent: Float): String = "${percent.roundToInt()}%"
 /** 4213 → "4.2 s". */
 fun formatSeconds(millis: Long): String = String.format(Copy, "%.1f s", millis / 1000.0)
 
-/** Binary units, as download sizes are usually shown: 386_400_000 → "368 MB", 1.83e9 → "1.7 GB". */
+/**
+ * Decimal units, as Android's storage settings and the Play Store count them, so the sizes
+ * match what the phone reports: 386_400_000 → "386 MB", 1_834_400_000 → "1.8 GB".
+ */
 fun formatBytes(bytes: Long): String =
-    if (bytes >= GiB) String.format(Copy, "%.1f GB", bytes.toDouble() / GiB) else "${bytes / MiB} MB"
+    if (bytes >= GB) String.format(Copy, "%.1f GB", bytes.toDouble() / GB) else "${(bytes + MB / 2) / MB} MB"
+
+/** [bytes] as a bare number in the unit [formatBytes] picks for [total]: 84 (MB), 0.7 (GB). */
+fun formatBytesIn(bytes: Long, total: Long): String =
+    if (total >= GB) String.format(Copy, "%.1f", bytes.toDouble() / GB) else "${(bytes + MB / 2) / MB}"
 
 /**
  * Curly quotes for display: an apostrophe inside a word (don't, today's) becomes ’, and

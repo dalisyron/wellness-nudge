@@ -36,8 +36,12 @@ class FormattersTest {
         assertEquals("7,000", formatSteps(7000))
         assertEquals("15%", formatPercent(15.4f))
         assertEquals("4.2 s", formatSeconds(4_213))
-        assertEquals("368 MB", formatBytes(386_400_000))
-        assertEquals("1.7 GB", formatBytes(1_834_400_000))
+        // Decimal units, as Android's storage settings count them.
+        assertEquals("386 MB", formatBytes(386_400_000))
+        assertEquals("1.8 GB", formatBytes(1_834_400_000))
+        assertEquals("2.2 GB", formatBytes(386_400_000L + 1_834_400_000L))
+        assertEquals("88", formatBytesIn(88_000_000, 386_400_000))
+        assertEquals("0.8", formatBytesIn(752_104_000, 1_834_400_000))
     }
 
     @Test

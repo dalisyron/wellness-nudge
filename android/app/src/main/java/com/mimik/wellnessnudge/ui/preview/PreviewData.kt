@@ -147,10 +147,10 @@ object PreviewData {
     val stepSignIn = BootstrapState.Step(BootstrapState.Phase.LOGIN)
     val stepDeployMim = BootstrapState.Step(BootstrapState.Phase.DEPLOY_MIM)
 
-    /** First model downloading (84 / 368 MB), second waiting in the queue. */
+    /** First model downloading (88 / 386 MB), second waiting in the queue. */
     val setupDownloading = BootstrapState.Setup(
         listOf(
-            model(0, ModelSetupItem.State.Downloading, downloadedBytes = 84L * MiB),
+            model(0, ModelSetupItem.State.Downloading, downloadedBytes = 88_000_000L),
             model(1, ModelSetupItem.State.Pending),
         ),
     )
@@ -170,7 +170,7 @@ object PreviewData {
                 1,
                 ModelSetupItem.State.Failed,
                 downloadedBytes = (Models.QWEN3.approxBytes * 0.62).toLong(),
-                error = "Couldn't reach the download server. Check your internet and tap Retry.",
+                error = "Couldn’t reach the download server. Check your internet and tap Try again.",
             ),
         ),
     )
@@ -181,8 +181,8 @@ object PreviewData {
 
     val failedSignIn = BootstrapState.Failed(
         phase = BootstrapState.Phase.LOGIN,
-        message = "We couldn't reach the mimik identity service to set up your local AI. This usually means " +
-            "the phone is offline or on an IPv6-only cellular network. Connect to Wi-Fi and tap Retry.",
+        message = "We couldn’t reach the mimik identity service to set up your local AI. This usually means " +
+            "the phone is offline or on an IPv6-only cellular network. Connect to Wi-Fi and tap Try again.",
     )
 
     val runtimeInfo = RuntimeInfo(
@@ -194,8 +194,6 @@ object PreviewData {
         },
         nudgeCount = history.size,
     )
-
-    private const val MiB = 1024L * 1024
 
     private fun at(daysAgo: Int, hour: Int, minute: Int): Long =
         ZonedDateTime.of(2026, 9, 17, hour, minute, 0, 0, zone).minusDays(daysAgo.toLong()).toInstant().toEpochMilli()
