@@ -138,7 +138,7 @@ private val HoneyCore = Color(0xFFFFE3AE)
 private val BodyLight = Color(0xFFA395FF)
 private val BodyEdge = Color(0xFF5D4CE6)
 
-// Every period divides the 48 s orbit wrap, so the loop is seamless.
+// Every period divides 48 s, and the orbit wraps at a multiple of that, so the loop is seamless.
 private val Blobs = arrayOf(
     Blob(Daybreak.Iris, Daybreak.Iris, 0.9f, 1.35f, 0.46f, offset = 3.3f, sway = 0.35f, swayPeriod = 48f, drift = 0.12f, driftPeriod = 16f),
     Blob(Daybreak.Orchid, Daybreak.Orchid, 0.8f, 1.15f, 0.42f, offset = -1.6f, sway = 0.45f, swayPeriod = 24f, drift = 0.15f, driftPeriod = 12f),
