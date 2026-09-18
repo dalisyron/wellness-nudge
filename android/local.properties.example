@@ -1,17 +1,15 @@
 # Copy this file to local.properties and fill in the values.
 # local.properties is gitignored — never commit credentials.
 #
-# All three values come from https://console.mimik.com (free developer signup):
-#   1. Edge License JWT  — bottom of the Edge Projects page (also at ~/.mimoe/mimoe.lic)
-#   2. Client ID         — your project page
-#   3. Developer ID Token — "Get ID Token" button on your project page (note: this expires!)
+# Both values come from https://console.mimik.com (free developer signup):
+#   1. Client ID          — your project page
+#   2. Developer ID Token — "Get ID Token" button on your project page (it expires after about a month)
+# The Edge License JWT (bottom of the Edge Projects page) goes in
+# app/src/main/res/raw/mimoe_license, which is gitignored too.
 
-# Where Android Studio finds the SDK — leave as-is or let Android Studio set it.
-sdk.dir=/Users/nibom/Library/Android/sdk
+# Where the Android SDK lives (Android Studio fills this in for you).
+sdk.dir=/path/to/Android/sdk
 
 # mimik developer console credentials
 mimik.clientId=
 mimik.developerIdToken=
-
-# Path to the Edge License JWT. Defaults to ~/.mimoe/mimoe.lic if left blank.
-mimik.licensePath=
