@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.mimik.wellnessnudge.data.NudgeRepository
+import com.mimik.wellnessnudge.testing.FakeNudgeApi
 import com.mimik.wellnessnudge.ui.navigation.MainScaffold
 import com.mimik.wellnessnudge.ui.preview.PreviewData
 import org.junit.Rule
