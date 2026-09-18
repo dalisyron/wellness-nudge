@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mimik.wellnessnudge.BuildConfig
+import com.mimik.wellnessnudge.api.NudgeApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,11 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("wellness_nudge", Context.MODE_PRIVATE)
 
     val edgeRuntime: EdgeRuntime get() = edge
+
+    // Used by the runtime sheet; created on first use, once the runtime (and its port) is up.
+    private val runtimeApi: NudgeApi by lazy {
+        NudgeApi.create(mimBaseUrl(edge.client.mimOEPort), BuildConfig.WELLNESS_API_KEY)
+    }
 
     fun start() {
         if (_state.value is BootstrapState.Ready) return
@@ -70,6 +77,38 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
         if (idx < 0) return
         val spec = Models.ALL.firstOrNull { it.download.id == modelId } ?: return
         viewModelScope.launch(Dispatchers.IO) { downloadModel(spec, idx) }
+    }
+
+    /**
+     * Collects what the runtime sheet shows: the runtime port, the mim's health, which models
+     * mILM can serve, and how many nudges are stored. Meant for [BootstrapState.Ready].
+     */
+    suspend fun loadRuntimeInfo(): RuntimeInfo = withContext(Dispatchers.IO) {
+        val readyIds = edge.listModels().filter { it.readyToUse }.map { it.id }.toSet()
+        RuntimeInfo(
+            port = edge.client.mimOEPort,
+            mimApiRoot = EdgeRuntime.WELLNESS_API_ROOT,
+            mimHealth = attempt { runtimeApi.health().data },
+            models = Models.ALL.map { spec ->
+                RuntimeModel(
+                    id = spec.download.id,
+                    displayName = spec.displayName,
+                    technicalName = spec.technicalName,
+                    sizeBytes = spec.approxBytes,
+                    ready = spec.download.id in readyIds,
+                )
+            },
+            nudgeCount = attempt { runtimeApi.listHistory(limit = 1).data?.total },
+        )
+    }
+
+    private suspend fun <T> attempt(block: suspend () -> T?): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        Log.d(TAG, "runtime info: ${t.message}")
+        null
     }
 
     private suspend fun run() {
@@ -283,7 +322,7 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun existingMimIsHealthy(port: Int): Boolean = withContext(Dispatchers.IO) {
         try {
-            val url = "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}/wellness-nudge/v1/healthcheck"
+            val url = "${mimBaseUrl(port)}/healthcheck"
             val client = OkHttpClient.Builder()
                 .connectTimeout(2, TimeUnit.SECONDS)
                 .readTimeout(2, TimeUnit.SECONDS)
@@ -298,12 +337,14 @@ class BootstrapViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun transitionToReady() {
-        val port = edge.client.mimOEPort
         _state.value = BootstrapState.Ready(
-            mimBaseUrl = "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}/wellness-nudge/v1",
+            mimBaseUrl = mimBaseUrl(edge.client.mimOEPort),
             apiKey = BuildConfig.WELLNESS_API_KEY,
         )
     }
+
+    private fun mimBaseUrl(port: Int): String =
+        "http://127.0.0.1:$port/${BuildConfig.MIMIK_CLIENT_ID}${EdgeRuntime.WELLNESS_API_ROOT}"
 
     private fun fail(phase: BootstrapState.Phase, message: String, cause: Throwable? = null) {
         _state.value = BootstrapState.Failed(phase, message, cause)
