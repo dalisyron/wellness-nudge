@@ -33,7 +33,7 @@ class TodayUiStateTest {
         assertNull(TodayUiState(goal = "   ").toNudgeRequest().userGoal)
     }
 
-    /** The scenarios' signals sit on the sliders' steps (5.2 h becomes 5.25 h). */
+    /** The scenarios' signals already sit on the sliders' steps, so they go out exactly as tuned. */
     @Test
     fun firstSampleDaysAreTheDemoScenarios() {
         val requests = MockNudgeInputs.ALL.take(4).map {
@@ -42,10 +42,10 @@ class TodayUiStateTest {
 
         assertEquals(
             listOf(
-                NudgeRequest(5.25, 12.0, 15.0, 68, 29, 3_400, "Sleep better tonight"),
-                NudgeRequest(6.0, 15.0, 18.0, 66, 34, 5_200, "Feel less stressed before my big presentation"),
-                NudgeRequest(7.75, 21.0, 22.0, 63, 44, 23_500, "Recover from yesterday's long hike"),
-                NudgeRequest(8.0, 20.0, 23.0, 55, 68, 11_200, "Train for my first 10K"),
+                NudgeRequest(5.2, 12.0, 15.0, 68, 29, 3_400, "Sleep better tonight"),
+                NudgeRequest(6.1, 15.0, 18.0, 66, 34, 5_200, "Feel less stressed before my big presentation"),
+                NudgeRequest(7.8, 21.0, 22.0, 63, 44, 23_500, "Recover from yesterday's long hike"),
+                NudgeRequest(7.9, 20.0, 23.0, 55, 68, 11_200, "Train for my first 10K"),
             ),
             requests,
         )
@@ -53,14 +53,14 @@ class TodayUiStateTest {
 
     @Test
     fun stepsMoveToTheNeighboringSliderStops() {
-        assertEquals(6.75f, Metric.SleepHours.stepUp(6.5f))
-        assertEquals(6.25f, Metric.SleepHours.stepDown(6.5f))
-        // A value between stops, e.g. typed into an older build: 5.2 h.
-        assertEquals(5.25f, Metric.SleepHours.stepUp(5.2f))
-        assertEquals(5.0f, Metric.SleepHours.stepDown(5.2f))
+        assertEquals(6.6f, Metric.SleepHours.stepUp(6.5f), 1e-4f)
+        assertEquals(6.4f, Metric.SleepHours.stepDown(6.5f), 1e-4f)
+        // A value between stops, e.g. saved by an older 15-minute build: 5.25 h.
+        assertEquals(5.3f, Metric.SleepHours.stepUp(5.25f), 1e-4f)
+        assertEquals(5.2f, Metric.SleepHours.stepDown(5.25f), 1e-4f)
         // Slider noise still counts as the stop it is on.
-        assertEquals(6.5f, Metric.SleepHours.stepUp(6.2500005f))
-        assertEquals(6.0f, Metric.SleepHours.stepDown(6.2500005f))
+        assertEquals(6.3f, Metric.SleepHours.stepUp(6.2000003f), 1e-4f)
+        assertEquals(6.1f, Metric.SleepHours.stepDown(6.2000003f), 1e-4f)
         assertEquals(7_100f, Metric.Steps.stepUp(7_000f))
         assertEquals(6_900f, Metric.Steps.stepDown(7_000f))
     }
@@ -75,14 +75,14 @@ class TodayUiStateTest {
 
     @Test
     fun snapCleansSliderValues() {
-        assertEquals(6.25f, Metric.SleepHours.snap(6.2500005f))
+        assertEquals(6.2f, Metric.SleepHours.snap(6.2000003f), 1e-4f)
         assertEquals(64f, Metric.RestingHr.snap(64.00001f))
         assertEquals(110f, Metric.RestingHr.snap(140f))
     }
 
     @Test
     fun slidersStopAtEveryStep() {
-        assertEquals(47, Metric.SleepHours.sliderSteps)
+        assertEquals(119, Metric.SleepHours.sliderSteps)
         assertEquals(39, Metric.DeepSleep.sliderSteps)
         assertEquals(69, Metric.RestingHr.sliderSteps)
         assertEquals(109, Metric.Hrv.sliderSteps)

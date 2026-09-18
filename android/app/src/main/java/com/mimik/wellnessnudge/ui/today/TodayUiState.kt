@@ -48,9 +48,13 @@ data class DayMetrics(
     }
 }
 
-/** An editable signal: the range its slider spans and the step its slider and −/+ buttons move by. */
+/**
+ * An editable signal: the range its slider spans and the step its slider and −/+ buttons move by.
+ * Sleep moves in 0.1 h (6 min) steps so the card's "5h 12m" and the nudge's "5.2 hours" always
+ * name the same duration; the mim writes hours with one decimal.
+ */
 enum class Metric(val range: ClosedFloatingPointRange<Float>, val step: Float) {
-    SleepHours(0f..12f, 0.25f),
+    SleepHours(0f..12f, 0.1f),
     DeepSleep(0f..40f, 1f),
     RemSleep(0f..40f, 1f),
     RestingHr(40f..110f, 1f),
@@ -99,8 +103,8 @@ fun TodayUiState.toNudgeRequest(): NudgeRequest = NudgeRequest(
 )
 
 /**
- * The scenario's signals on the sliders' steps (5.2 h becomes 5.25 h), so a slider never sits
- * between stops showing one value while its thumb stands for another.
+ * The scenario's signals on the sliders' steps, so a slider never sits between stops showing
+ * one value while its thumb stands for another.
  */
 internal fun MockNudgeInput.toDayMetrics() = DayMetrics(
     sleepHours = Metric.SleepHours.snap(sleepHours),
